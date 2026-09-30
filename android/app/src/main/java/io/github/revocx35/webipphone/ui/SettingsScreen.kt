@@ -28,6 +28,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.core.net.toUri
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -102,14 +103,14 @@ fun SettingsScreen(app: WebPhoneApp) {
                 Text("Battery optimization may stop the connection while the phone sleeps.", style = MaterialTheme.typography.bodySmall)
                 OutlinedButton({
                     runCatching {
-                        ctx.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${ctx.packageName}")))
+                        ctx.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, "package:${ctx.packageName}".toUri()))
                     }
                 }) { Text("Allow running in the background") }
             }
             if (Build.VERSION.SDK_INT >= 34 && !nm.canUseFullScreenIntent()) {
                 Text("Full-screen incoming calls are not allowed: calls only show as a notification.", style = MaterialTheme.typography.bodySmall)
                 OutlinedButton({
-                    runCatching { ctx.startActivity(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:${ctx.packageName}"))) }
+                    runCatching { ctx.startActivity(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, "package:${ctx.packageName}".toUri())) }
                 }) { Text("Allow full-screen calls") }
             }
             st.selectedPhone?.let { p ->
@@ -124,7 +125,7 @@ fun SettingsScreen(app: WebPhoneApp) {
         MyPhones(app, refresh) { refresh++ }
         Section("About") {
             Text("Web IP Phone ${BuildConfig.VERSION_NAME}" + if (st.serverVersion.isNotBlank()) " · server ${st.serverVersion}" else "")
-            TextButton({ runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/revocx35/web-ip-phone"))) } }) {
+            TextButton({ runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/revocx35/web-ip-phone".toUri())) } }) {
                 Text("Source code and documentation")
             }
         }

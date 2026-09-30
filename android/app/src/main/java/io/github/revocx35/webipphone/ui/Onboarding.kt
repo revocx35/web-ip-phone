@@ -29,6 +29,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.core.net.toUri
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -120,7 +121,7 @@ fun SignInFlow(app: WebPhoneApp) {
             busy = true
             try {
                 val u = normalizeServerUrl(url)
-                val host = android.net.Uri.parse(u).host ?: ""
+                val host = u.toUri().host ?: ""
                 if (Build.VERSION.SDK_INT >= 37 && !LocalNetwork.granted(ctx) && withContext(Dispatchers.IO) { LocalNetwork.isLan(host) }) {
                     needLan = true
                     return@launch
@@ -310,7 +311,7 @@ fun RestrictedFlow(app: WebPhoneApp, me: Me) {
             secret?.let { s ->
                 Text("Key: " + s.chunked(4).joinToString(" "), fontFamily = FontFamily.Monospace)
                 TextButton({
-                    runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri))) }
+                    runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, uri?.toUri())) }
                         .onFailure { error = "No authenticator app found; enter the key manually." }
                 }) { Text("Open in authenticator app") }
             }

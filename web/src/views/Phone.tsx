@@ -51,7 +51,7 @@ export function Initials({ name }: { name: string }) {
   const s = name.trim();
   if (!/\p{L}/u.test(s)) return <IconUser />;
   const parts = s.split(/\s+/).filter((p) => /\p{L}/u.test(p));
-  return <>{(parts.length > 1 ? parts[0][0] + parts[1][0] : parts[0].slice(0, 2)).toUpperCase()}</>;
+  return <>{(parts.length > 1 ? parts[0][0] + parts[1][0] : parts[0][0]).toUpperCase()}</>;
 }
 
 function statusText(c: CallView, now: number) {

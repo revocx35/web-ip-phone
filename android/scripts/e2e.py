@@ -22,7 +22,7 @@ ADB = os.environ.get("ADB", "/opt/android-sdk/platform-tools/adb")
 PKG = os.environ.get("E2E_PKG", "io.github.revocx35.webipphone.debug")
 SERVER = os.environ.get("SERVER", "https://10.0.2.2:8443")
 USER = os.environ.get("E2E_USER", "droid")
-PASSWORD = os.environ.get("E2E_PASSWORD", "Green-Robot-2026")
+PASSWORD = os.environ.get("E2E_PASSWORD", "")  # the test user's password (see CLAUDE.local.md)
 OUT = os.environ.get("OUT", "/tmp/e2e-shots")
 REAL_PBX_NUMBER = os.environ.get("REAL_PBX_NUMBER", "")
 REAL_PBX_PHONE = os.environ.get("REAL_PBX_PHONE", "· 1007")  # text in the phone picker entry
@@ -152,6 +152,8 @@ def pick_phone(label_part):
 
 
 def main():
+    if not PASSWORD:
+        raise SystemExit("set E2E_PASSWORD (and E2E_USER) for the test account")
     step("fresh install state")
     adb("shell", "pm", "clear", PKG)
     for p in ["android.permission.RECORD_AUDIO", "android.permission.POST_NOTIFICATIONS"]:

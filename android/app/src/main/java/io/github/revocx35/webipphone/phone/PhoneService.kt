@@ -57,7 +57,8 @@ class PhoneService : Service() {
         val mic = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         val type = when {
             Build.VERSION.SDK_INT < 29 -> 0
-            call != null -> ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL or (if (mic) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0)
+            call != null -> ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL or
+                (if (mic && Build.VERSION.SDK_INT >= 30) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0)
             Build.VERSION.SDK_INT >= 34 -> ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
             else -> ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
         }

@@ -1,5 +1,6 @@
 package io.github.revocx35.webipphone.net
 
+import android.annotation.SuppressLint
 import java.io.IOException
 import java.security.KeyStore
 import java.security.MessageDigest
@@ -42,6 +43,9 @@ fun Throwable.untrustedCertificate(): UntrustedCertificateException? {
  * usual. Anything else is accepted only if its SHA-256 fingerprint equals the one the user
  * confirmed earlier (the admin page shows the server's fingerprint for comparison).
  */
+// Not a "trust all" manager: it delegates to the platform's default validation and only adds an
+// exact-fingerprint exception the user confirmed (lint: CustomX509TrustManager).
+@SuppressLint("CustomX509TrustManager")
 class PinningTrustManager(private val pin: String?) : X509TrustManager {
     private val system: X509TrustManager = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
         .apply { init(null as KeyStore?) }

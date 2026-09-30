@@ -83,6 +83,10 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) error {
 			return &apiError{status: http.StatusForbidden, code: "csrf", msg: "cross-origin WebSocket refused"}
 		}
 	}
+	// The server's read/write timeouts are for normal requests; a call lasts longer.
+	rc := http.NewResponseController(w)
+	rc.SetReadDeadline(time.Time{})
+	rc.SetWriteDeadline(time.Time{})
 	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true}) // origin checked above
 	if err != nil {
 		return nil // Accept wrote the error response

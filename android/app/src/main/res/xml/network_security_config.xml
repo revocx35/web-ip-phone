@@ -4,11 +4,11 @@
   accepted only after the user compared and trusted its SHA-256 fingerprint in the app
   (trust on first use, see net/TrustStore.kt). User-installed CAs work too (private CA setups).
 -->
-<network-security-config>
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
-            <certificates src="user" />
+            <certificates src="user" tools:ignore="AcceptsUserCertificates" />
         </trust-anchors>
     </base-config>
 </network-security-config>

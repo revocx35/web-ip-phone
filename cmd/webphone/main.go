@@ -159,9 +159,12 @@ func newHTTPServer(addr string, h http.Handler, log *slog.Logger) *http.Server {
 		Addr:              addr,
 		Handler:           h,
 		ReadHeaderTimeout: 10 * time.Second,
-		IdleTimeout:       120 * time.Second,
-		MaxHeaderBytes:    32 << 10,
-		ErrorLog:          slog.NewLogLogger(log.Handler(), slog.LevelDebug),
+		// Bounds slow uploads; the WebSocket handler lifts both deadlines for its connection.
+		ReadTimeout:    30 * time.Second,
+		WriteTimeout:   60 * time.Second,
+		IdleTimeout:    120 * time.Second,
+		MaxHeaderBytes: 32 << 10,
+		ErrorLog:       slog.NewLogLogger(log.Handler(), slog.LevelDebug),
 	}
 }
 
