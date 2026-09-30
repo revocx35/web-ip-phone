@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -152,12 +153,18 @@ func toneFrame(codec media.Codec, phase *float64) []byte {
 	return out
 }
 
+var nextPort atomic.Int32
+
+func init() { nextPort.Store(5170) }
+
 func newTestEngine(t *testing.T) (*Engine, *testHandler) {
 	t.Helper()
 	h := &testHandler{accounts: map[string]*Account{}, incoming: make(chan *Call, 4), regs: map[int64]RegState{},
 		regCh: make(chan int64, 16), listener: func() CallListener { return newRecorder() }}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	e, err := New(Config{ListenPort: 5071, RTPPool: media.NewPortPool(22000, 22100, nil), Handler: h, Logger: log,
+	// A fresh SIP port per engine: a previous test's engine may still be winding down.
+	port := int(nextPort.Add(1))
+	e, err := New(Config{ListenPort: port, RTPPool: media.NewPortPool(22000, 22100, nil), Handler: h, Logger: log,
 		Trace: os.Getenv("SIP_TRACE") != ""})
 	if err != nil {
 		t.Fatal(err)

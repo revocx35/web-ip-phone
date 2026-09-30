@@ -277,6 +277,9 @@ func (e *Engine) Dial(acct *Account, target string, l CallListener) (*Call, erro
 	if !ValidDialString(target) {
 		return nil, errors.New("invalid number")
 	}
+	if e.closing.Load() {
+		return nil, errors.New("server is shutting down")
+	}
 	client, ip, err := e.clientFor(&acct.PBX)
 	if err != nil {
 		return nil, err
@@ -318,7 +321,11 @@ func (e *Engine) Dial(acct *Account, target string, l CallListener) (*Call, erro
 	ctx, cancel := context.WithCancel(e.ctx)
 	c.cancelDial = cancel
 	e.addCall(c)
-	go c.runOutgoing(ctx, dua, req)
+	e.work.Add(1)
+	go func() {
+		defer e.work.Done()
+		c.runOutgoing(ctx, dua, req)
+	}()
 	return c, nil
 }
 

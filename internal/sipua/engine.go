@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/emiago/sipgo"
@@ -135,6 +136,11 @@ type Engine struct {
 
 	udpConn net.PacketConn
 	tcpLn   net.Listener
+
+	// work counts goroutines that drive calls; Close waits for them before closing sockets
+	// (sipgo would otherwise re-bind the port for a late CANCEL/BYE).
+	work    sync.WaitGroup
+	closing atomic.Bool
 }
 
 func New(cfg Config) (*Engine, error) {
@@ -240,6 +246,9 @@ func (e *Engine) Start(ctx context.Context) error {
 
 // Close hangs up all calls, unregisters and stops the listeners.
 func (e *Engine) Close() {
+	if e.closing.Swap(true) {
+		return
+	}
 	e.mu.Lock()
 	calls := make([]*Call, 0, len(e.calls))
 	for _, c := range e.calls {
@@ -258,20 +267,26 @@ func (e *Engine) Close() {
 		wg.Add(1)
 		go func() { defer wg.Done(); r.stop(true) }()
 	}
-	done := make(chan struct{})
-	go func() { wg.Wait(); close(done) }()
-	select {
-	case <-done:
-	case <-time.After(3 * time.Second):
-	}
+	waitTimeout(&wg, 3*time.Second)
 	if e.cancel != nil {
 		e.cancel()
 	}
+	waitTimeout(&e.work, 3*time.Second)
+	e.ua.Close() // terminates remaining transactions
+	waitTimeout(&e.work, 2*time.Second)
 	if e.udpConn != nil {
 		e.udpConn.Close()
 		e.tcpLn.Close()
 	}
-	e.ua.Close()
+}
+
+func waitTimeout(wg *sync.WaitGroup, d time.Duration) {
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(d):
+	}
 }
 
 // SetPBXs updates the list of PBX hosts allowed to send us SIP.
@@ -538,5 +553,11 @@ func (e *Engine) onInvite(req *sip.Request, tx sip.ServerTransaction) {
 			return
 		}
 	}
+	if e.closing.Load() {
+		tx.Respond(sip.NewResponseFromRequest(req, sip.StatusServiceUnavailable, "Service Unavailable", nil))
+		return
+	}
+	e.work.Add(1)
+	defer e.work.Done()
 	e.handleNewInvite(req, tx)
 }
