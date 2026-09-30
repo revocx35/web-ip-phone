@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
 
     /** Debug builds: the emulator e2e replaces the microphone with a test tone. */
     private fun applyDebugExtras(intent: android.content.Intent) {
-        if (BuildConfig.DEBUG && intent.hasExtra("test_tone")) {
+        if (BuildConfig.TEST_HOOKS && intent.hasExtra("test_tone")) {
             (application as WebPhoneApp).phone.audio.testTone = intent.getBooleanExtra("test_tone", false)
         }
     }

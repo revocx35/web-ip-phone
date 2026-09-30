@@ -239,8 +239,8 @@ class PhoneClient(private val app: WebPhoneApp) {
         if (incoming != null && !incoming.ended && mine == null) {
             if (ringingFor.add(incoming.id)) {
                 ringer.ring()
-                val line = s.phones.firstOrNull { it.id == incoming.phoneId }?.let { "${it.title} (${it.sipUser})" } ?: ""
-                Notifications.showIncoming(app, incoming, line)
+                // In the foreground the app shows its own incoming-call screen.
+                if (!app.inForeground) showIncomingNotification(incoming)
             }
         } else if (ringingFor.isNotEmpty()) {
             ringingFor.clear()
@@ -249,6 +249,17 @@ class PhoneClient(private val app: WebPhoneApp) {
         }
         // keep the process alive during calls
         if (mine != null) PhoneService.start(app)
+    }
+
+    private fun showIncomingNotification(c: CallView) {
+        val line = state.value.phones.firstOrNull { it.id == c.phoneId }?.let { "${it.title} (${it.sipUser})" } ?: ""
+        Notifications.showIncoming(app, c, line)
+    }
+
+    /** The app moved to/from the foreground while a call may be ringing. */
+    fun onForegroundChanged(foreground: Boolean) {
+        val ringing = state.value.incoming?.takeIf { it.id in ringingFor } ?: return
+        if (foreground) Notifications.cancelIncoming(app) else showIncomingNotification(ringing)
     }
 
     private fun stopCallAudio() {

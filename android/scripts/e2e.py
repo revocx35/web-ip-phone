@@ -156,10 +156,20 @@ def main():
     adb("shell", "pm", "clear", PKG)
     for p in ["android.permission.RECORD_AUDIO", "android.permission.POST_NOTIFICATIONS"]:
         adb("shell", "pm", "grant", PKG, p, check=False)
-    adb("shell", "am", "start", "-W", "-n", f"{PKG}/io.github.revocx35.webipphone.MainActivity", "--ez", "test_tone", "true")
+    launch = ["shell", "am", "start", "-W", "-n", f"{PKG}/io.github.revocx35.webipphone.MainActivity", "--ez", "test_tone", "true"]
+    adb(*launch)
+    field = None
+    for _ in range(2):  # right after an install the first launch can race with the package update
+        try:
+            field = wait("server field", rid="server", timeout=12)
+            break
+        except AssertionError:
+            adb(*launch)
+    if field is None:
+        field = wait("server field", rid="server")
 
     step("server address")
-    type_into(wait("server field", rid="server"), SERVER)
+    type_into(field, SERVER)
     hide_keyboard()
     tap(wait("continue", text="Continue"))
     # Android 17: local network permission (our explanation, then the system dialog)

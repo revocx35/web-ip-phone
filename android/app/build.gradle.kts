@@ -48,9 +48,21 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.findByName("release")
             vcsInfo.include = false
+            buildConfigField("boolean", "TEST_HOOKS", "false")
         }
         debug {
             applicationIdSuffix = ".debug"
+            buildConfigField("boolean", "TEST_HOOKS", "true")
+        }
+        // Minified exactly like release plus the emulator test hooks (test tone, audio stats), so
+        // scripts/e2e.py can exercise R8's output. Signed with the debug key; never distributed.
+        create("e2e") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".e2e"
+            isDebuggable = true
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+            buildConfigField("boolean", "TEST_HOOKS", "true")
         }
     }
 

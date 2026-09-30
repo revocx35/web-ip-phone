@@ -62,6 +62,7 @@ class WebPhoneApp : Application() {
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
                 inForeground = true
+                phone.onForegroundChanged(true)
                 stopJob?.cancel()
                 if (signedIn) {
                     phone.start()
@@ -72,6 +73,7 @@ class WebPhoneApp : Application() {
 
             override fun onStop(owner: LifecycleOwner) {
                 inForeground = false
+                phone.onForegroundChanged(false)
                 if (!prefs.backgroundCalls) {
                     stopJob = scope.launch {
                         delay(20_000)

@@ -114,7 +114,7 @@ class CallAudio(private val context: Context, private val send: (ByteArray) -> B
 
     private fun captureLoop() {
         Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
-        if (BuildConfig.DEBUG && testTone) return toneLoop()
+        if (BuildConfig.TEST_HOOKS && testTone) return toneLoop()
         val (rec, rate) = openRecorder() ?: return
         val effects = listOfNotNull(
             if (AcousticEchoCanceler.isAvailable()) AcousticEchoCanceler.create(rec.audioSessionId)?.apply { enabled = true } else null,
@@ -191,7 +191,7 @@ class CallAudio(private val context: Context, private val send: (ByteArray) -> B
             track.play()
             var lastLog = System.currentTimeMillis()
             while (running && !Thread.currentThread().isInterrupted) {
-                if (BuildConfig.DEBUG && System.currentTimeMillis() - lastLog > 2000) {
+                if (BuildConfig.TEST_HOOKS && System.currentTimeMillis() - lastLog > 2000) {
                     lastLog = System.currentTimeMillis()
                     Log.i(TAG, "stats sent=$framesSent played=$framesPlayed loud=$loudFramesPlayed jitter=${jitter.size()}/${jitter.currentTarget()}")
                 }
