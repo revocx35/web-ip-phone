@@ -1,0 +1,29 @@
+# build output
+/webphone
+/dist/
+web/dist/*
+!web/dist/.gitkeep
+web/node_modules/
+# local data / secrets (never commit)
+/data/
+*.db
+*.db-wal
+*.db-shm
+secret.key
+CLAUDE.local.md
+keystore.properties
+*.jks
+*.keystore
+# android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.kotlin/
+android/captures/
+android/*.apk
+# editors
+.idea/
+.vscode/
+*.swp
+.DS_Store
