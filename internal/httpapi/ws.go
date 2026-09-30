@@ -130,7 +130,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) error {
 					return
 				}
 			case <-recheck.C:
-				if !s.sessionAlive(ctx, a.Session.ID, s.requestTokenHash(r)) {
+				if !s.sessionAlive(ctx, a.Session.ID, s.requestTokenHash(r), clientIP(r)) {
 					conn.Close("session ended")
 				}
 			case <-conn.done:
@@ -180,8 +180,10 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// sessionAlive re-checks that the connection's session was not revoked or expired.
-func (s *Server) sessionAlive(ctx context.Context, sessionID int64, tokenHash []byte) bool {
+// sessionAlive re-checks that the connection's session was not revoked or expired. An open
+// connection counts as activity (a phone waiting for calls is in use); the absolute session
+// lifetime still applies.
+func (s *Server) sessionAlive(ctx context.Context, sessionID int64, tokenHash []byte, ip string) bool {
 	if tokenHash == nil {
 		return false
 	}
@@ -193,7 +195,11 @@ func (s *Server) sessionAlive(ctx context.Context, sessionID int64, tokenHash []
 		return true // database hiccup: don't drop calls for it
 	}
 	u, err := s.store.GetUser(ctx, se.UserID)
-	return err == nil && !u.Disabled
+	if err != nil || u.Disabled {
+		return false
+	}
+	s.store.TouchSession(ctx, se, ip)
+	return true
 }
 
 // requestTokenHash returns the hash of the session token a request authenticated with.

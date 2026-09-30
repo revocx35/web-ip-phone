@@ -149,8 +149,11 @@ func New(cfg Config) (*Engine, error) {
 		clients: map[string]*sipgo.Client{}, regs: map[int64]*registration{}, calls: map[string]*Call{},
 		allowed: map[netip.Addr]bool{}, pbxHosts: map[int64]string{},
 	}
-	sip.SIPDebug = cfg.Trace
-	sip.SetDefaultLogger(cfg.Logger.With("component", "sipgo"))
+	// sipgo's logger and trace switch are package globals read by its goroutines: set once.
+	sipgoInit.Do(func() {
+		sip.SIPDebug = cfg.Trace
+		sip.SetDefaultLogger(cfg.Logger.With("component", "sipgo"))
+	})
 
 	tlsConf := &tls.Config{
 		MinVersion: tls.VersionTLS12,
@@ -195,6 +198,8 @@ func New(cfg Config) (*Engine, error) {
 }
 
 const allowHeader = "INVITE, ACK, CANCEL, BYE, OPTIONS, INFO, UPDATE, NOTIFY"
+
+var sipgoInit sync.Once
 
 // Start opens the UDP and TCP listeners.
 func (e *Engine) Start(ctx context.Context) error {
