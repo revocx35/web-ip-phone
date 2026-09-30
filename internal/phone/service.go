@@ -451,7 +451,9 @@ type cmdError struct {
 
 func (e *cmdError) Error() string { return e.msg }
 
-func errf(code, format string, a ...any) error { return &cmdError{code: code, msg: fmt.Sprintf(format, a...)} }
+func errf(code, format string, a ...any) error {
+	return &cmdError{code: code, msg: fmt.Sprintf(format, a...)}
+}
 
 // ---- commands ----------------------------------------------------------------------
 

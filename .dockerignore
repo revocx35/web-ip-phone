@@ -1,0 +1,10 @@
+.git
+android
+docs
+test
+tools
+**/node_modules
+web/dist
+data
+*.md
+!README.md

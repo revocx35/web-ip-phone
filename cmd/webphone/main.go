@@ -53,6 +53,9 @@ func run() error {
 	if err := os.MkdirAll(cfg.DataDir, 0o700); err != nil {
 		return err
 	}
+	if err := os.Chmod(cfg.DataDir, 0o700); err != nil {
+		log.Warn("cannot restrict the data directory to the server user", "dir", cfg.DataDir, "err", err)
+	}
 	key := cfg.SecretKey
 	if key == nil {
 		if key, err = secretbox.LoadOrCreateKey(filepath.Join(cfg.DataDir, "secret.key")); err != nil {

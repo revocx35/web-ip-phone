@@ -14,8 +14,8 @@ import (
 var (
 	userRe     = regexp.MustCompile(`^[0-9A-Za-z*+._~-]{1,64}$`)
 	authUserRe = regexp.MustCompile(`^[0-9A-Za-z*+._~@-]{1,128}$`)
-	hostRe   = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$`)
-	dialRe   = regexp.MustCompile(`^[0-9A-Za-z*#+._-]{1,64}$`)
+	hostRe     = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$`)
+	dialRe     = regexp.MustCompile(`^[0-9A-Za-z*#+._-]{1,64}$`)
 )
 
 // ValidUser checks a SIP user / auth user name.

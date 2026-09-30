@@ -43,9 +43,9 @@ type Server struct {
 	setupMu    sync.Mutex
 	setupToken string // "" once an admin exists
 
-	loginThrottle *auth.Throttle
-	mfaThrottle   *auth.Throttle
-	setupThrottle *auth.Throttle
+	loginThrottle   *auth.Throttle
+	mfaThrottle     *auth.Throttle
+	setupThrottle   *auth.Throttle
 	apiLimiter      *auth.RateLimiter
 	wsLimiter       *auth.RateLimiter
 	sipCheckLimiter *auth.RateLimiter
@@ -80,8 +80,8 @@ func New(o Options) *Server {
 		wsLimiter:     auth.NewRateLimiter(30, 10),
 		// SIP credential checks per user: 10 per hour, burst 5.
 		sipCheckLimiter: auth.NewRateLimiterPer(10, time.Hour, 5),
-		mfaTickets:    map[string]*mfaTicket{},
-		now:           time.Now,
+		mfaTickets:      map[string]*mfaTicket{},
+		now:             time.Now,
 	}
 	if o.PWParams != nil {
 		s.pwParams = *o.PWParams

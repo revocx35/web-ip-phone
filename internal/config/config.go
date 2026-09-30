@@ -23,7 +23,7 @@ type Config struct {
 	HTTPSListen string
 	// HTTPListen is the address of the plain-HTTP server ("" disables it). Meant for a
 	// reverse proxy on the same host/LAN that terminates TLS.
-	HTTPListen string
+	HTTPListen  string
 	TLSCertFile string
 	TLSKeyFile  string
 

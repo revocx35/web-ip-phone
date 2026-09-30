@@ -1,0 +1,41 @@
+# Web IP Phone - standalone deployment with the published image (no source checkout needed)
+#
+#   mkdir -p ~/webphone && cd ~/webphone
+#   curl -fsSLO https://raw.githubusercontent.com/revocx35/web-ip-phone/main/deploy/docker-compose.yml
+#   docker compose up -d
+#   docker compose logs webphone | grep setup_token     # one-time token for the admin account
+#   open https://<host-ip>:8443
+#
+# Host networking: SIP and RTP to your PBX need the host's real LAN address.
+# Ports on the host: 8443/tcp (web UI + app), 5070/udp+tcp (SIP towards your PBXs only),
+# 20000-20199/udp (RTP audio with your PBXs). Expose only 8443 to the internet.
+# Docker inside a Proxmox LXC needs the container options nesting=1 (and keyctl=1 if unprivileged).
+
+name: webphone
+
+services:
+  webphone:
+    image: ghcr.io/revocx35/web-ip-phone:1   # 1.x updates; pin e.g. :1.0.0 to stay on a release
+    container_name: webphone
+    restart: unless-stopped
+    network_mode: host
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=16m"]
+    environment:
+      WEBPHONE_HTTPS_LISTEN: ":8443"        # built-in HTTPS (self-signed unless TLS_CERT_FILE is set)
+      WEBPHONE_HTTP_LISTEN: ""              # e.g. "127.0.0.1:8080" for a TLS reverse proxy on this host
+      WEBPHONE_TRUSTED_PROXIES: ""          # reverse proxy IPs/CIDRs allowed to send X-Forwarded-*; "private" = RFC 1918
+      WEBPHONE_PUBLIC_ORIGINS: ""           # extra browser origins, e.g. https://phone.example.com
+      WEBPHONE_SIP_PORT: "5070"
+      WEBPHONE_RTP_PORT_MIN: "20000"
+      WEBPHONE_RTP_PORT_MAX: "20199"
+      WEBPHONE_ADVERTISE_IP: ""             # empty = the local address towards each PBX
+      WEBPHONE_MAX_CALLS: "20"
+      WEBPHONE_LOG_LEVEL: "info"
+    volumes:
+      - webphone-data:/data                 # database, encryption key, TLS certificate: back it up
+
+volumes:
+  webphone-data:

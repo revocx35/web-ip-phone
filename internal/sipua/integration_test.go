@@ -336,6 +336,15 @@ func TestRegisterAndIncomingCall(t *testing.T) {
 		t.Fatalf("contact not on PBX:\n%s", out)
 	}
 
+	// A credential check (REGISTER without Contact) must not touch existing bindings.
+	if err := e.CheckCredentials(context.Background(), a2); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	if out := astCLI(t, "pjsip show contacts"); !strings.Contains(out, a2.ContactToken) {
+		t.Fatalf("credential check removed the registration:\n%s", out)
+	}
+
 	calleeRec := newRecorder()
 	h.listener = func() CallListener { return calleeRec }
 	caller, callerRec := dial(t, e, a1, "2002")

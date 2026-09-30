@@ -146,7 +146,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) error {
 	go func() { // reader
 		defer wg.Done()
 		defer cancel()
-		ctl := auth.NewRateLimiter(30*60, 60)   // 30 control messages/s
+		ctl := auth.NewRateLimiter(30*60, 60)     // 30 control messages/s
 		audio := auth.NewRateLimiter(120*60, 200) // 20 ms frames need 50/s
 		for {
 			typ, data, err := c.Read(ctx)

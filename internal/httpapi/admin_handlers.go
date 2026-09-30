@@ -655,4 +655,3 @@ func (s *Server) handleAdminPutSettings(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, st)
 	return nil
 }
-

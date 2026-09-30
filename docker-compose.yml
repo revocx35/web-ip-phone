@@ -1,0 +1,40 @@
+# Web IP Phone, built from this checkout:   docker compose up -d --build
+# (deploy/docker-compose.yml runs the published image without a checkout.)
+#
+# Host networking: SIP and RTP to your PBX need the host's real LAN address.
+# Ports on the host: 8443/tcp (web UI + app, HTTPS), 5070/udp+tcp (SIP, only
+# your PBXs are answered), 20000-20199/udp (RTP audio with your PBXs).
+# Only 8443 needs to be reachable from outside (directly or via a reverse proxy).
+
+name: webphone
+
+services:
+  webphone:
+    build:
+      context: .
+      args:
+        VERSION: ${VERSION:-dev}
+    image: web-ip-phone:local
+    container_name: webphone
+    restart: unless-stopped
+    network_mode: host
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=16m"]
+    environment:
+      WEBPHONE_HTTPS_LISTEN: ":8443"        # built-in HTTPS (self-signed unless TLS_CERT_FILE is set)
+      WEBPHONE_HTTP_LISTEN: ""              # e.g. "127.0.0.1:8080" for a TLS reverse proxy on this host
+      WEBPHONE_TRUSTED_PROXIES: ""          # reverse proxy IPs/CIDRs allowed to send X-Forwarded-*; "private" = RFC 1918
+      WEBPHONE_PUBLIC_ORIGINS: ""           # extra browser origins, e.g. https://phone.example.com (if the proxy rewrites Host)
+      WEBPHONE_SIP_PORT: "5070"
+      WEBPHONE_RTP_PORT_MIN: "20000"
+      WEBPHONE_RTP_PORT_MAX: "20199"
+      WEBPHONE_ADVERTISE_IP: ""             # empty = the local address towards each PBX
+      WEBPHONE_MAX_CALLS: "20"
+      WEBPHONE_LOG_LEVEL: "info"
+    volumes:
+      - webphone-data:/data                 # database, encryption key, TLS certificate
+
+volumes:
+  webphone-data:

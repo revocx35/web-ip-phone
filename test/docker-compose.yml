@@ -1,0 +1,9 @@
+# Disposable Asterisk for the integration tests (host networking, SIP on 5160).
+#   docker compose -f test/docker-compose.yml up -d --build
+name: webphone-test
+services:
+  pbx:
+    build: asterisk
+    image: webphone-test-asterisk
+    container_name: webphone-test-pbx
+    network_mode: host
