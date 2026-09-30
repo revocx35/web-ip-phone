@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  HTTPS only. Certificates are checked against the system CAs; a self-signed server certificate is
+  accepted only after the user compared and trusted its SHA-256 fingerprint in the app
+  (trust on first use, see net/TrustStore.kt). User-installed CAs work too (private CA setups).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
