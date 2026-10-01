@@ -1,7 +1,9 @@
 package io.github.revocx35.webipphone.phone
 
 import android.content.BroadcastReceiver
+import android.content.Intent
 import android.util.Log
+import io.github.revocx35.webipphone.IncomingCallActivity
 import io.github.revocx35.webipphone.WebPhoneApp
 import io.github.revocx35.webipphone.net.CallView
 import io.github.revocx35.webipphone.net.PhoneView
@@ -254,6 +256,22 @@ class PhoneClient(private val app: WebPhoneApp) {
     private fun showIncomingNotification(c: CallView) {
         val line = state.value.phones.firstOrNull { it.id == c.phoneId }?.let { "${it.title} (${it.sipUser})" } ?: ""
         Notifications.showIncoming(app, c, line)
+        // Full-screen notifications blocked: open the call screen ourselves if we may.
+        if (!CallScreenAccess.fullScreenAllowed(app)) launchCallScreen(c)
+    }
+
+    private fun launchCallScreen(c: CallView) {
+        if (app.inForeground || IncomingCallActivity.shownCall == c.id || !CallScreenAccess.overlayAllowed(app)) return
+        runCatching {
+            app.startActivity(Intent(app, IncomingCallActivity::class.java)
+                .putExtra(IncomingCallActivity.EXTRA_CALL, c.id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }.onFailure { Log.w(TAG, "cannot open the call screen", it) }
+    }
+
+    /** The screen was turned on or unlocked: show a ringing call's screen if it is not up yet. */
+    fun onScreenOn() {
+        val c = state.value.incoming?.takeIf { it.id in ringingFor } ?: return
+        launchCallScreen(c)
     }
 
     /** The app moved to/from the foreground while a call may be ringing. */

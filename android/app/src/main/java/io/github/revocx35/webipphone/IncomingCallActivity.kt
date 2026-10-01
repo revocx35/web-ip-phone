@@ -46,6 +46,16 @@ class IncomingCallActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        shownCall = callId()
+    }
+
+    override fun onStop() {
+        if (shownCall == callId()) shownCall = null
+        super.onStop()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -69,5 +79,8 @@ class IncomingCallActivity : ComponentActivity() {
     companion object {
         const val EXTRA_CALL = "call"
         const val EXTRA_ANSWER = "answer"
+
+        /** Call whose screen is currently visible (null if none). */
+        @Volatile var shownCall: String? = null
     }
 }

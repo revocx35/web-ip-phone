@@ -41,7 +41,9 @@ WEBPHONE_PASSWORD=... go run ./tools/livecall -url https://127.0.0.1:8443 -insec
 
 # Android (see android/ and CLAUDE.local.md for the emulator)
 cd android && ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleE2e
-python3 scripts/e2e.py                          # emulator e2e (env: SERVER, E2E_USER, E2E_PKG, REAL_PBX_NUMBER)
+python3 scripts/e2e.py                          # emulator e2e (env: SERVER, E2E_USER, E2E_PASSWORD, E2E_PKG, REAL_PBX_NUMBER)
+python3 scripts/lockscreen_test.py              # incoming call with the screen off -> call screen over the lock screen
+# seeded local server + test Asterisk for these: ADMIN_PASSWORD=... E2E_PASSWORD=... tools/dev-stack.sh up
 ```
 
 Test credentials, the user's PBX details and which extension may be used live in the git-ignored
@@ -94,3 +96,6 @@ Test credentials, the user's PBX details and which extension may be used live in
 - The Android emulator (`emulator-5554`, API 37) is shared with other projects; `-no-audio`, so audio is
   verified with the debug/e2e test tone and the `CallAudio: stats` log line.
 - UI Automator does not see heads-up notifications: the e2e opens the notification shade.
+- Lock-screen calls depend on the "full-screen notifications" app-op (often denied for sideloaded apps on
+  Android 14+); test both paths with `adb shell appops set <pkg> USE_FULL_SCREEN_INTENT deny|allow` and
+  `SYSTEM_ALERT_WINDOW allow|default` (the fallback). See `phone/CallScreenAccess.kt`.

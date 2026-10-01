@@ -167,6 +167,7 @@ fun KeypadScreen(app: WebPhoneApp, number: String, setNumber: (String) -> Unit) 
                 }
             }
         }
+        CallScreenBanner()
         st.elsewhere?.let { c ->
             Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
                 Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {

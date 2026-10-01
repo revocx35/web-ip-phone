@@ -58,6 +58,7 @@ fun Home(app: WebPhoneApp) {
     }
 
     LocalNetworkPrompt(app)
+    CallScreenPrompt(app)
 
     val myCall = st.myCall
     val incoming = st.incoming

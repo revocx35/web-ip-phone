@@ -38,6 +38,11 @@ class Prefs(context: Context, private val cipher: SecretCipher = KeystoreCipher(
         get() = sp.getBoolean("askedBattery", false)
         set(v) = sp.edit { putBoolean("askedBattery", v) }
 
+    /** The user saw the explanation about showing calls on the lock screen. */
+    var askedCallScreen: Boolean
+        get() = sp.getBoolean("askedCallScreen", false)
+        set(v) = sp.edit { putBoolean("askedCallScreen", v) }
+
     fun signOut() = sp.edit { remove("token") }
 
     fun forgetServer() = sp.edit {

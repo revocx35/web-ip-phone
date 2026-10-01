@@ -155,6 +155,8 @@ def main():
     if not PASSWORD:
         raise SystemExit("set E2E_PASSWORD (and E2E_USER) for the test account")
     step("fresh install state")
+    adb("shell", "input", "keyevent", "KEYCODE_WAKEUP")
+    adb("shell", "wm", "dismiss-keyguard")
     adb("shell", "pm", "clear", PKG)
     for p in ["android.permission.RECORD_AUDIO", "android.permission.POST_NOTIFICATIONS"]:
         adb("shell", "pm", "grant", PKG, p, check=False)
@@ -193,6 +195,10 @@ def main():
     hide_keyboard()
     tap(wait("sign in", rid="signin"))
     wait("keypad", rid="phone-picker", timeout=25)
+    time.sleep(1)
+    n = find(text="Not now")  # "show calls on the lock screen" explanation, if the permission is missing
+    if n is not None:
+        tap(n)
 
     step("select test PBX phone and wait for registration")
     pick_phone("Reception · 2001")

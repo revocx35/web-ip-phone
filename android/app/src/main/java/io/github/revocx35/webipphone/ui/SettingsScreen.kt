@@ -1,7 +1,6 @@
 package io.github.revocx35.webipphone.ui
 
 import android.annotation.SuppressLint
-import android.app.NotificationManager
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -74,7 +73,6 @@ fun SettingsScreen(app: WebPhoneApp) {
     var confirmSignOut by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
     val pm = ctx.getSystemService(PowerManager::class.java)
-    val nm = ctx.getSystemService(NotificationManager::class.java)
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Settings", style = MaterialTheme.typography.titleLarge)
@@ -107,12 +105,9 @@ fun SettingsScreen(app: WebPhoneApp) {
                     }
                 }) { Text("Allow running in the background") }
             }
-            if (Build.VERSION.SDK_INT >= 34 && !nm.canUseFullScreenIntent()) {
-                Text("Full-screen incoming calls are not allowed: calls only show as a notification.", style = MaterialTheme.typography.bodySmall)
-                OutlinedButton({
-                    runCatching { ctx.startActivity(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, "package:${ctx.packageName}".toUri())) }
-                }) { Text("Allow full-screen calls") }
-            }
+            HorizontalDivider()
+            CallScreenSettings()
+            HorizontalDivider()
             st.selectedPhone?.let { p ->
                 Text("Current phone: ${p.title} (${p.sipUser} @ ${p.pbxName}) - " + when (p.reg.status) {
                     "registered" -> "registered"

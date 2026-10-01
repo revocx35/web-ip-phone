@@ -45,10 +45,29 @@ delivers the calls, so:
 
 - allow *Running in the background* (battery optimization exemption) when the app suggests it, otherwise
   some phones cut the connection while sleeping;
-- on Android 14+ allow *full-screen calls* (Settings in the app links there), or incoming calls show as a
-  heads-up notification with Answer/Decline instead of the full call screen.
+- see *Incoming calls on the lock screen* below.
 
 Turn the option off to receive calls only while the app is open.
+
+## Incoming calls on the lock screen
+
+Like WhatsApp, an incoming call turns the screen on and shows the call screen over the lock screen;
+you can answer without unlocking. On Android 14 and newer this needs the special access
+**Full-screen notifications**, which Android usually does not grant automatically to apps installed
+outside the Play Store. Without it, a call only rings with a notification.
+
+The app explains this after you sign in and shows a red banner on the keypad while it is missing; *Allow*
+opens the right Android setting (*Settings -> Apps -> Special app access -> Full-screen notifications*).
+
+If your phone has no such setting or still only shows a notification (some manufacturers add their own
+restrictions), allow **Display over other apps** under *Settings -> Call screen when locked* in the app:
+the app then opens the call screen itself when a call comes in, and again when you turn on or unlock the
+screen while it rings. The app does not draw anything over other apps; Android just requires this
+permission for an app to open a screen from the background. On Xiaomi/MIUI also allow *Show on lock
+screen* and *Display pop-up windows while running in the background* in the app's permissions.
+
+While you are using the phone, an incoming call shows as a heads-up notification with Answer and Decline,
+like other call apps.
 
 ## Own SIP accounts
 
