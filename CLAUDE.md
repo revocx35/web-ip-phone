@@ -12,6 +12,23 @@ talks SIP/RTP to the PBX on the LAN. Clients never speak SIP. The deliverable is
 Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing call, media, auth or protocol code, and
 [SECURITY.md](SECURITY.md) before touching anything reachable from the internet.
 
+## Before you finish: update the documentation (required)
+
+Every session that changes the project must leave the docs as current as the code, so the next agent
+can continue without re-discovering anything:
+
+- **ARCHITECTURE.md**: update the affected sections (components, flows, data model, security layers).
+  Add an entry to **§12 History** (version/date, what changed, why, who reported it), record new
+  **design decisions with their reasons in §13**, and add anything you had to debug or learn the hard
+  way (library quirks, PBX/Android behavior, environment gotchas, user preferences) to **§14 Notes for
+  future sessions**. Move finished items out of the backlog and add new ideas to it.
+- **CLAUDE.md**: new commands, layout changes, new rules.
+- **User-facing docs** (README.md, docs/*.md, SECURITY.md) when behavior, setup or security changes;
+  `docs/protocol.md` when the API or WebSocket protocol changes.
+- Secrets and local test details go only into the git-ignored `CLAUDE.local.md`, never into the repo.
+
+Commit the documentation together with the change (or right after it) and push it.
+
 ## Commands
 
 ```bash

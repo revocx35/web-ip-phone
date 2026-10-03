@@ -229,6 +229,9 @@ CI (`.github/workflows/ci.yml`) runs all but the Android emulator and real-PBX l
 
 ## 14. Notes for future sessions
 
+> **For every agent working on this repo:** after your change, update §12 History, §13 decisions and
+> this section the same way (see "Before you finish" in CLAUDE.md).
+
 **sipgo quirks (v1.6.0)** - each cost debugging time:
 - CANCEL/ACK are built from the Request-URI and ignore `SetDestination`: the PBX host:port must be in the
   Request-URI or a Route header (`PBX.requestURI`).
