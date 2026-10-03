@@ -64,7 +64,7 @@ granted to U in `phone_access`. Everything (REST, WebSocket commands, incoming-c
 through this rule; `phone.Service.Revalidate` re-applies it to live connections and calls after every
 admin change, so revoked access ends calls immediately.
 
-### 3.1 Contacts (since the unreleased version after 1.0.1)
+### 3.1 Contacts (since 1.1.0)
 
 The phone book lives on the server so the web UI and the app show the same contacts. Schema v2 adds
 `contacts` (`owner_id` NULL = **shared**), `contact_numbers` (ordered by `position`) and
@@ -232,7 +232,7 @@ CI (`.github/workflows/ci.yml`) runs all but the Android emulator and real-PBX l
   against a local Asterisk 20/22 and the user's FreePBX 17 (Asterisk 22) with real `*43` calls.
 - **1.0.1 (2026-10-01)**: Android shows incoming calls over the lock screen (9.1). Reported by the user:
   "rings but I can't see the call screen unless I tap the notification".
-- **Unreleased (main, 2026-10-03): contacts** in the web UI and the Android app (3.1), requested by the
+- **1.1.0 (2026-10-03): contacts** in the web UI and the Android app (3.1), requested by the
   user ("add contacts both to the web ui and the android app"). Server-side phone book with shared
   (admin) contacts, per-user favorites and live sync; caller names on incoming/in-call screens,
   notifications and recents; save callers from recents; keypad and transfer suggestions; Android import

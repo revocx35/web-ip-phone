@@ -89,8 +89,8 @@ docker compose pull && docker compose up -d
 ```
 
 Database migrations run automatically at start. Downgrading to a version with an older schema is refused,
-so back up the volume before an update you might want to roll back (e.g. the update that adds contacts
-creates schema v2).
+so back up the volume before an update you might want to roll back (e.g. 1.1.0 creates schema v2;
+1.0.x refuses to start on it).
 
 ## Recovery
 
