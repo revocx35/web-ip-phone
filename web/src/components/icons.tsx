@@ -100,3 +100,28 @@ export const IconUser = (p: P) => (
     <path d="M4 21a8 8 0 0 1 16 0" />
   </S>
 );
+export const IconStar = (p: P & { filled?: boolean }) => {
+  const { filled, ...rest } = p;
+  return (
+    <S {...rest} fill={filled ? 'currentColor' : 'none'}>
+      <path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5-4.8-4.6 6.6-.9z" />
+    </S>
+  );
+};
+export const IconEdit = (p: P) => (
+  <S {...p}>
+    <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+  </S>
+);
+export const IconUserPlus = (p: P) => (
+  <S {...p}>
+    <circle cx="9" cy="8" r="4" />
+    <path d="M1 21a8 8 0 0 1 16 0M20 8v6M17 11h6" />
+  </S>
+);
+export const IconSearch = (p: P) => (
+  <S {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="M21 21l-4.3-4.3" />
+  </S>
+);

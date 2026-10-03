@@ -112,7 +112,7 @@ fun RoundButton(icon: ImageVector, color: Color, description: String, modifier: 
 }
 
 @Composable
-private fun rememberMicPermission(onResult: (Boolean) -> Unit): () -> Unit {
+internal fun rememberMicPermission(onResult: (Boolean) -> Unit): () -> Unit {
     val ctx = LocalContext.current
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { onResult(it) }
     return { if (hasPermission(ctx, Manifest.permission.RECORD_AUDIO)) onResult(true) else launcher.launch(Manifest.permission.RECORD_AUDIO) }
@@ -133,6 +133,8 @@ fun KeypadScreen(app: WebPhoneApp, number: String, setNumber: (String) -> Unit) 
     }
     val askMic = rememberMicPermission { dial() }
     val phone = st.selectedPhone
+    val book by app.phone.contacts.collectAsState()
+    val hint = remember(number, book) { book.suggest(number) }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(12.dp))
@@ -185,8 +187,22 @@ fun KeypadScreen(app: WebPhoneApp, number: String, setNumber: (String) -> Unit) 
                 }
             }
         }
+        // Contact matching the typed number (reserved height: the keypad does not jump).
+        Box(Modifier.fillMaxWidth().height(40.dp), contentAlignment = Alignment.Center) {
+            hint?.let { h ->
+                Surface(onClick = { setNumber(h.number.number) }, shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.testTag("suggestion")) {
+                    Row(Modifier.padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(h.contact.name, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false))
+                        Spacer(Modifier.width(8.dp))
+                        Text(listOf(h.number.label, h.number.number).filter { it.isNotBlank() }.joinToString(" "),
+                            style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                    }
+                }
+            }
+        }
         ErrorText(error)
-        Spacer(Modifier.height(12.dp))
         Keypad({ k ->
             app.phone.ringer.keyTone(k.first())
             if (number.length < 64) setNumber(number + k)
@@ -202,7 +218,9 @@ fun KeypadScreen(app: WebPhoneApp, number: String, setNumber: (String) -> Unit) 
 fun RecentsScreen(app: WebPhoneApp, onPick: (String) -> Unit) {
     var calls by remember { mutableStateOf<List<CallRecord>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var adding by remember { mutableStateOf<ContactDraft?>(null) }
     val st by app.phone.state.collectAsState()
+    val book by app.phone.contacts.collectAsState()
     val ended = st.calls.count { it.ended }
     LaunchedEffect(ended) {
         delay(500)
@@ -219,21 +237,26 @@ fun RecentsScreen(app: WebPhoneApp, onPick: (String) -> Unit) {
             else -> LazyColumn {
                 items(list, key = { it.id }) { c ->
                     val missed = c.direction == "in" && c.answeredAt == null
+                    val hit = book.lookup(c.remote)
+                    val name = hit?.contact?.name ?: c.remoteName.ifBlank { c.remote }
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(if (c.direction == "in") AppIcons.ArrowIn else AppIcons.ArrowOut, null,
                             tint = if (missed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(c.remoteName.ifBlank { c.remote }, fontWeight = FontWeight.SemiBold,
+                            Text(name, fontWeight = FontWeight.SemiBold,
                                 color = if (missed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface, maxLines = 1)
                             val dur = if (c.answeredAt != null && c.endedAt != null) {
                                 val a = parseInstant(c.answeredAt); val e = parseInstant(c.endedAt)
                                 if (a != null && e != null) formatDuration(java.time.Duration.between(a, e).seconds) else ""
                             } else c.status
-                            Text(listOfNotNull(c.remote.takeIf { c.remoteName.isNotBlank() }, c.phoneLabel, dur).joinToString(" · "),
+                            Text(listOfNotNull(c.remote.takeIf { name != c.remote }, c.phoneLabel, dur).joinToString(" · "),
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                         }
                         Text(formatWhen(c.startedAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (hit == null && c.remote.isNotBlank()) IconButton({ adding = ContactDraft.new(c.remoteName, c.remote) }) {
+                            Icon(AppIcons.UserPlus, "Add ${c.remote} to contacts", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                         IconButton({ onPick(c.remote) }) { Icon(AppIcons.Phone, "Call ${c.remote}", tint = MaterialTheme.colorScheme.primary) }
                     }
                     HorizontalDivider()
@@ -241,6 +264,7 @@ fun RecentsScreen(app: WebPhoneApp, onPick: (String) -> Unit) {
             }
         }
     }
+    adding?.let { ContactEditDialog(app, it, onDone = { adding = null }) }
 }
 
 private fun statusText(c: CallView, now: Long): String = when (c.state) {
@@ -284,6 +308,7 @@ fun InCallScreen(app: WebPhoneApp, call: CallView) {
     var transfer by remember { mutableStateOf<String?>(null) }
     var routeMenu by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val book by app.phone.contacts.collectAsState()
     val routes by app.phone.router.routes.collectAsState()
     val route by app.phone.router.current.collectAsState()
     val level by app.phone.audio.level.collectAsState()
@@ -306,7 +331,7 @@ fun InCallScreen(app: WebPhoneApp, call: CallView) {
             Spacer(Modifier.height(16.dp))
             Text(call.who, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, maxLines = 1,
                 overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("call-who"))
-            if (call.remoteName.isNotBlank()) Text(call.remote, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (call.numberLine.isNotBlank()) Text(call.numberLine, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
             Text(statusText(call, now), color = if (live && !call.hold) CallGreen else MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Medium, modifier = Modifier.testTag("call-status"))
@@ -361,10 +386,22 @@ fun InCallScreen(app: WebPhoneApp, call: CallView) {
         AlertDialog(
             onDismissRequest = { transfer = null },
             title = { Text("Transfer call") },
-            text = { OutlinedTextField(t, { transfer = it }, label = { Text("Number") }, singleLine = true) },
+            text = {
+                Column {
+                    OutlinedTextField(t, { transfer = it }, label = { Text("Number or contact") }, singleLine = true)
+                    // Contacts matching what was typed: tap to use their number.
+                    val matches = if (t.isBlank()) emptyList() else book.search(t).flatMap { c -> c.numbers.map { c to it } }.take(4)
+                    matches.forEach { (c, n) ->
+                        TextButton({ transfer = n.number }, Modifier.fillMaxWidth()) {
+                            Text("${c.name} · ${listOf(n.label, n.number).filter { it.isNotBlank() }.joinToString(" ")}",
+                                Modifier.fillMaxWidth(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+            },
             confirmButton = {
                 TextButton({
-                    val n = t.trim()
+                    val n = t.filter { !it.isWhitespace() && it != '(' && it != ')' }
                     transfer = null
                     if (DIAL_RE.matches(n)) run { app.phone.transfer(call.id, n) }
                 }) { Text("Transfer") }
@@ -397,7 +434,7 @@ fun IncomingCallScreen(app: WebPhoneApp, callId: String, onAnswered: () -> Unit,
             Spacer(Modifier.height(18.dp))
             Text(call?.who ?: "", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold, maxLines = 1,
                 overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("incoming-who"))
-            if (call?.remoteName?.isNotBlank() == true) Text(call.remote, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (call?.numberLine?.isNotBlank() == true) Text(call.numberLine, color = MaterialTheme.colorScheme.onSurfaceVariant)
             ErrorText(error)
             Spacer(Modifier.weight(1f))
             Row(Modifier.fillMaxWidth().padding(bottom = 40.dp), horizontalArrangement = Arrangement.SpaceEvenly) {

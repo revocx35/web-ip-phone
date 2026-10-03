@@ -30,7 +30,7 @@ import io.github.revocx35.webipphone.WebPhoneApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-enum class Tab(val label: String) { KEYPAD("Keypad"), RECENTS("Recents"), SETTINGS("Settings") }
+enum class Tab(val label: String) { KEYPAD("Keypad"), RECENTS("Recents"), CONTACTS("Contacts"), SETTINGS("Settings") }
 
 @Composable
 fun AppRoot(app: WebPhoneApp) {
@@ -90,6 +90,7 @@ fun Home(app: WebPhoneApp) {
             when (tab) {
                 Tab.KEYPAD -> KeypadScreen(app, number, { number = it })
                 Tab.RECENTS -> RecentsScreen(app) { n -> number = n; tab = Tab.KEYPAD }
+                Tab.CONTACTS -> ContactsScreen(app)
                 Tab.SETTINGS -> SettingsScreen(app)
             }
         }

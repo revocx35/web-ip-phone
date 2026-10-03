@@ -85,6 +85,11 @@ type msgPhones struct {
 	Phones []PhoneView `json:"phones"`
 }
 
+// msgContacts: the user's phone book changed (on another device, or a shared contact); reload it.
+type msgContacts struct {
+	Type string `json:"type"`
+}
+
 type msgCall struct {
 	Type string   `json:"type"`
 	Call CallView `json:"call"`

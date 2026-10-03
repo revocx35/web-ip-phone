@@ -3,10 +3,12 @@ import { del, get, type CallRecord, type CallView, type Me } from '../api';
 import { navigate, toast, toastError, useStore } from '../store';
 import { phone, phoneState } from '../phone/client';
 import { audio, audioBlocked, micLevel } from '../phone/audio';
-import { fmtDuration, fmtTime, RegBadge, useInterval, useConfirm } from '../components/ui';
+import { callerName, contacts } from '../contacts';
+import { fmtDuration, fmtTime, Initials, RegBadge, useInterval, useConfirm } from '../components/ui';
 import {
-  IconArrowDownLeft, IconArrowUpRight, IconBackspace, IconGrid, IconMic, IconMicOff, IconPause, IconPhone, IconTransfer, IconUser, IconX,
+  IconArrowDownLeft, IconArrowUpRight, IconBackspace, IconGrid, IconMic, IconMicOff, IconPause, IconPhone, IconTransfer, IconUserPlus, IconX,
 } from '../components/icons';
+import { ContactForm, ContactsPanel, type ContactEdit } from './Contacts';
 
 const KEYS: [string, string][] = [
   ['1', ''], ['2', 'ABC'], ['3', 'DEF'], ['4', 'GHI'], ['5', 'JKL'], ['6', 'MNO'],
@@ -47,13 +49,6 @@ function Keypad({ onKey }: { onKey: (k: string) => void }) {
   );
 }
 
-export function Initials({ name }: { name: string }) {
-  const s = name.trim();
-  if (!/\p{L}/u.test(s)) return <IconUser />;
-  const parts = s.split(/\s+/).filter((p) => /\p{L}/u.test(p));
-  return <>{(parts.length > 1 ? parts[0][0] + parts[1][0] : parts[0][0]).toUpperCase()}</>;
-}
-
 function statusText(c: CallView, now: number) {
   switch (c.state) {
     case 'calling':
@@ -81,6 +76,9 @@ function InCall({ call }: { call: CallView }) {
   const [digits, setDigits] = useState('');
   const [transfer, setTransfer] = useState<string | null>(null);
   const level = useStore(micLevel);
+  const book = useStore(contacts).index;
+  const hit = book.lookup(call.remote);
+  const name = hit?.contact.name || call.remoteName || call.remote;
   useInterval(() => setNow(Date.now()), 500);
   const live = call.state === 'active';
   const ended = call.state === 'ended';
@@ -98,10 +96,10 @@ function InCall({ call }: { call: CallView }) {
   return (
     <div class="in-call">
       <div class="avatar">
-        <Initials name={call.remoteName || call.remote} />
+        <Initials name={name} />
       </div>
-      <div class="who ellipsis">{call.remoteName || call.remote}</div>
-      {call.remoteName && <div class="num">{call.remote}</div>}
+      <div class="who ellipsis">{name}</div>
+      {name !== call.remote && <div class="num">{(hit?.number.label ? hit.number.label + ' · ' : '') + call.remote}</div>}
       <div class={'status' + (live && !call.hold && !call.remoteHold ? ' live' : '')}>{statusText(call, now)}</div>
       {live && !muted && (
         <div class="level" title="Microphone level">
@@ -121,9 +119,10 @@ function InCall({ call }: { call: CallView }) {
           style={{ maxWidth: '300px', margin: '0 auto 12px' }}
           onSubmit={async (e) => {
             e.preventDefault();
-            if (!DIAL_RE.test(transfer)) return toast('Enter a valid number', 'error');
+            const target = transfer.replace(/[\s()]/g, '');
+            if (!DIAL_RE.test(target)) return toast('Enter a valid number', 'error');
             try {
-              await phone.transfer(call.id, transfer);
+              await phone.transfer(call.id, target);
               toast('Transferring…', 'success');
               setTransfer(null);
             } catch (err) {
@@ -131,7 +130,23 @@ function InCall({ call }: { call: CallView }) {
             }
           }}
         >
-          <input class="input" placeholder="Transfer to number" value={transfer} autofocus onInput={(e) => setTransfer((e.target as HTMLInputElement).value)} />
+          <input
+            class="input"
+            placeholder="Transfer to number or contact"
+            list="wip-transfer-targets"
+            value={transfer}
+            autofocus
+            onInput={(e) => setTransfer((e.target as HTMLInputElement).value)}
+          />
+          <datalist id="wip-transfer-targets">
+            {book.list.flatMap((c) =>
+              c.numbers.map((n) => (
+                <option key={c.id + ':' + n.number} value={n.number}>
+                  {c.name + (n.label ? ' · ' + n.label : '')}
+                </option>
+              )),
+            )}
+          </datalist>
           <div class="row">
             <button type="button" class="btn grow" onClick={() => setTransfer(null)}>
               Cancel
@@ -184,6 +199,7 @@ function InCall({ call }: { call: CallView }) {
 function Dialer({ disabled, number, setNumber }: { disabled: boolean; number: string; setNumber: (s: string) => void }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const hint = useStore(contacts).index.suggest(number);
   const dial = async () => {
     const n = number.replace(/[\s()]/g, '');
     if (!DIAL_RE.test(n)) {
@@ -218,6 +234,14 @@ function Dialer({ disabled, number, setNumber }: { disabled: boolean; number: st
           </button>
         )}
       </div>
+      <div class="suggest-slot">
+        {hint && (
+          <button type="button" class="suggest" title="Use this number" onClick={() => setNumber(hint.number.number)}>
+            <b class="ellipsis">{hint.contact.name}</b>
+            <span class="muted ellipsis">{(hint.number.label ? hint.number.label + ' ' : '') + hint.number.number}</span>
+          </button>
+        )}
+      </div>
       <Keypad
         onKey={(k) => {
           audio.keyTone(k);
@@ -233,23 +257,23 @@ function Dialer({ disabled, number, setNumber }: { disabled: boolean; number: st
   );
 }
 
-function Recents({ onPick, refreshKey }: { onPick: (n: string) => void; refreshKey: number }) {
+function Recents({ onPick, onAdd, refreshKey }: { onPick: (n: string) => void; onAdd: (e: ContactEdit) => void; refreshKey: number }) {
   const [calls, setCalls] = useState<CallRecord[] | null>(null);
   const { confirm, dialog } = useConfirm();
+  const book = useStore(contacts).index;
   const load = () => get<CallRecord[]>('/calls?limit=100').then(setCalls).catch(() => setCalls([]));
   useEffect(() => {
     load();
   }, [refreshKey]);
   return (
-    <div class="card pad-0">
-      <div class="card-head" style={{ padding: '16px 18px 0' }}>
-        <h2>Recent calls</h2>
-        {calls && calls.length > 0 && (
+    <>
+      {calls && calls.length > 0 && (
+        <div class="row end" style={{ padding: '0 14px 4px' }}>
           <button class="btn ghost small" onClick={() => confirm('Clear your call history?', async () => (await del('/calls'), load()))}>
-            Clear
+            Clear history
           </button>
-        )}
-      </div>
+        </div>
+      )}
       {calls === null ? (
         <div class="empty">Loading…</div>
       ) : calls.length === 0 ? (
@@ -259,6 +283,8 @@ function Recents({ onPick, refreshKey }: { onPick: (n: string) => void; refreshK
           {calls.map((c) => {
             const missed = c.direction === 'in' && !c.answeredAt;
             const dur = c.answeredAt && c.endedAt ? (Date.parse(c.endedAt) - Date.parse(c.answeredAt)) / 1000 : 0;
+            const hit = book.lookup(c.remote);
+            const name = hit?.contact.name || c.remoteName || c.remote;
             return (
               <li key={c.id} class="recent">
                 <span class={'dir ' + (missed ? 'missed' : c.direction)} title={missed ? 'Missed' : c.direction === 'in' ? 'Incoming' : 'Outgoing'}>
@@ -266,15 +292,25 @@ function Recents({ onPick, refreshKey }: { onPick: (n: string) => void; refreshK
                 </span>
                 <div class="grow">
                   <div class="ellipsis" style={{ fontWeight: 600, color: missed ? 'var(--danger)' : undefined }}>
-                    {c.remoteName || c.remote}
+                    {name}
                   </div>
                   <div class="small muted ellipsis">
-                    {c.remoteName ? c.remote + ' · ' : ''}
+                    {name !== c.remote ? (hit?.number.label ? hit.number.label + ' ' : '') + c.remote + ' · ' : ''}
                     {c.phoneLabel}
                     {dur > 0 ? ' · ' + fmtDuration(dur) : c.status !== 'answered' ? ' · ' + c.status : ''}
                   </div>
                 </div>
                 <span class="small muted nowrap">{fmtTime(c.startedAt)}</span>
+                {!hit && (
+                  <button
+                    class="btn ghost icon-btn"
+                    title="Add to contacts"
+                    aria-label={'Add ' + c.remote + ' to contacts'}
+                    onClick={() => onAdd({ prefill: { name: c.remoteName, number: c.remote } })}
+                  >
+                    <IconUserPlus />
+                  </button>
+                )}
                 <button class="btn ghost icon-btn" title={'Call ' + c.remote} aria-label={'Call ' + c.remote} onClick={() => onPick(c.remote)}>
                   <IconPhone />
                 </button>
@@ -284,6 +320,43 @@ function Recents({ onPick, refreshKey }: { onPick: (n: string) => void; refreshK
         </ul>
       )}
       {dialog}
+    </>
+  );
+}
+
+type SideTab = 'recents' | 'contacts';
+const SIDE_TAB_KEY = 'wip.sideTab';
+
+/** Recent calls and the phone book, next to the dialer (below it on narrow screens). */
+function SidePanel({ me, onPick, refreshKey }: { me: Me; onPick: (n: string) => void; refreshKey: number }) {
+  const [tab, setTab] = useState<SideTab>(() => {
+    try {
+      return localStorage.getItem(SIDE_TAB_KEY) === 'contacts' ? 'contacts' : 'recents';
+    } catch {
+      return 'recents';
+    }
+  });
+  const [edit, setEdit] = useState<ContactEdit | 'new' | null>(null);
+  const choose = (t: SideTab) => {
+    setTab(t);
+    try {
+      localStorage.setItem(SIDE_TAB_KEY, t);
+    } catch {
+      /* ignore */
+    }
+  };
+  return (
+    <div class="card pad-0 side-panel">
+      <div class="tabs in-card" role="tablist">
+        <button role="tab" aria-selected={tab === 'recents'} class={tab === 'recents' ? 'on' : ''} onClick={() => choose('recents')}>
+          Recent calls
+        </button>
+        <button role="tab" aria-selected={tab === 'contacts'} class={tab === 'contacts' ? 'on' : ''} onClick={() => choose('contacts')}>
+          Contacts
+        </button>
+      </div>
+      {tab === 'recents' ? <Recents onPick={onPick} onAdd={setEdit} refreshKey={refreshKey} /> : <ContactsPanel onCall={onPick} onEdit={setEdit} />}
+      {edit && <ContactForm me={me} edit={edit === 'new' ? { prefill: { name: '', number: '' } } : edit} onClose={() => setEdit(null)} />}
     </div>
   );
 }
@@ -369,7 +442,7 @@ export function PhoneView({ me }: { me: Me }) {
             {elsewhere && !current && (
               <div class="banner info" style={{ marginTop: '12px' }}>
                 <span class="grow">
-                  Call with <b>{elsewhere.remoteName || elsewhere.remote}</b> is on another device.
+                  Call with <b>{callerName(elsewhere.remote, elsewhere.remoteName)}</b> is on another device.
                 </span>
                 <button class="btn small primary" onClick={() => phone.attach(elsewhere.id).catch(toastError)}>
                   Continue here
@@ -387,7 +460,7 @@ export function PhoneView({ me }: { me: Me }) {
           </div>
         )}
       </div>
-      <Recents onPick={pick} refreshKey={historyKey} />
+      <SidePanel me={me} onPick={pick} refreshKey={historyKey} />
     </div>
   );
 }

@@ -5,7 +5,9 @@ import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
@@ -91,21 +93,36 @@ class Api(val baseUrl: String, pin: String?, @Volatile var token: String? = null
 
     suspend fun clearCalls() = delete("/calls")
 
+    suspend fun contacts(): List<Contact> = get<ContactsResponse>("/contacts").contacts
+
+    /** Creates ([id] null) or updates a contact. */
+    suspend fun saveContact(id: Long?, name: String, numbers: List<ContactNumber>, favorite: Boolean, shared: Boolean): Contact {
+        val body = mapOf("name" to name, "numbers" to numbers.map { mapOf("label" to it.label, "number" to it.number) },
+            "favorite" to favorite, "shared" to shared)
+        return if (id == null) post("/contacts", body) else put("/contacts/$id", body)
+    }
+
+    suspend fun deleteContact(id: Long) = delete("/contacts/$id")
+
+    suspend fun setFavorite(id: Long, on: Boolean): Contact = put("/contacts/$id/favorite", mapOf("favorite" to on))
+
     fun webSocket(listener: WebSocketListener): WebSocket {
         val req = Request.Builder().url("$baseUrl/api/v1/ws").header("Authorization", "Bearer ${token ?: ""}").build()
         return http.newWebSocket(req, listener)
     }
 
     companion object {
-        fun obj(m: Map<String, Any?>): JsonObject = JsonObject(m.mapValues { (_, v) ->
-            when (v) {
-                null -> kotlinx.serialization.json.JsonNull
-                is String -> JsonPrimitive(v)
-                is Number -> JsonPrimitive(v)
-                is Boolean -> JsonPrimitive(v)
-                is List<*> -> kotlinx.serialization.json.JsonArray(v.map { JsonPrimitive(it as? Number) })
-                else -> JsonPrimitive(v.toString())
-            }
-        })
+        fun obj(m: Map<String, Any?>): JsonObject = toJson(m) as JsonObject
+
+        fun toJson(v: Any?): JsonElement = when (v) {
+            null -> JsonNull
+            is JsonElement -> v
+            is String -> JsonPrimitive(v)
+            is Number -> JsonPrimitive(v)
+            is Boolean -> JsonPrimitive(v)
+            is Map<*, *> -> JsonObject(v.entries.associate { (k, x) -> k.toString() to toJson(x) })
+            is List<*> -> JsonArray(v.map { toJson(it) })
+            else -> JsonPrimitive(v.toString())
+        }
     }
 }

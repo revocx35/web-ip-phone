@@ -275,6 +275,34 @@ table.table { width: 100%; border-collapse: collapse; }
 .recent .dir.out { color: var(--primary); }
 .recent .dir.in { color: var(--success); }
 
+/* ---- side panel: recent calls + contacts ---- */
+.tabs.in-card { margin: 0 0 12px; padding: 6px 10px 0; }
+.side-panel .list > li { padding: 10px 14px; }
+.search { position: relative; }
+.search svg { position: absolute; left: 11px; top: 50%; width: 17px; height: 17px; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.search .input { padding-left: 36px; }
+.avatar.sm { width: 40px; height: 40px; margin: 0; font-size: .95rem; flex: none; }
+.avatar.sm svg { width: 20px; height: 20px; }
+.list > li.contact { align-items: flex-start; }
+.contact .numbers { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.num-pill {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface-2); cursor: pointer; font-size: .86rem; font-variant-numeric: tabular-nums;
+}
+.num-pill:hover { background: var(--primary-soft); border-color: var(--primary); }
+.num-pill svg { width: 14px; height: 14px; color: var(--primary); flex: none; }
+.num-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.star { color: var(--muted); }
+.star.on { color: #d97706; }
+.number-row { display: flex; gap: 8px; align-items: center; }
+.number-row .label-in { width: 34%; min-width: 90px; flex: none; }
+.suggest-slot { min-height: 34px; display: flex; justify-content: center; margin-bottom: 2px; }
+.suggest {
+  display: inline-flex; align-items: baseline; gap: 8px; max-width: 100%; padding: 5px 14px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--primary-soft); color: var(--primary); cursor: pointer; font-size: .9rem;
+}
+.suggest b { font-weight: 650; min-width: 0; }
+
 .qr { background: #fff; padding: 10px; border-radius: 10px; width: 220px; height: 220px; image-rendering: pixelated; }
 .codes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 18px; font-family: var(--mono); padding: 14px; background: var(--surface-2); border-radius: var(--radius-sm); }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; }

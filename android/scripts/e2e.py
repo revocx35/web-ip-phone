@@ -6,16 +6,20 @@ SERVER (from the emulator: 10.0.2.2 = the host) with:
   - PBX "Test Asterisk" (test/asterisk) with shared extension 2001 granted to USER,
   - USER may add own SIP accounts on that PBX ("any" mode).
 Optional REAL_PBX_NUMBER dials that number from the phone matching REAL_PBX_PHONE (e.g. FreePBX
-extension 1007 calling the *43 echo test).
+extension 1007 calling the *43 echo test). HOST_SERVER is the same server as seen from this host
+(contacts are also created through the REST API to check that the app picks them up live).
 
 The debug build replaces the microphone with a 1 kHz tone (--ez test_tone true) and logs
 "CallAudio: stats sent=.. played=.. loud=.." every 2 s; audio is checked through those counters.
 """
+import json
 import os
 import re
+import ssl
 import subprocess
 import sys
 import time
+import urllib.request
 import xml.etree.ElementTree as ET
 
 ADB = os.environ.get("ADB", "/opt/android-sdk/platform-tools/adb")
@@ -27,6 +31,7 @@ OUT = os.environ.get("OUT", "/tmp/e2e-shots")
 REAL_PBX_NUMBER = os.environ.get("REAL_PBX_NUMBER", "")
 REAL_PBX_PHONE = os.environ.get("REAL_PBX_PHONE", "· 1007")  # text in the phone picker entry
 ASTERISK = os.environ.get("ASTERISK_CONTAINER", "webphone-test-pbx")
+HOST_SERVER = os.environ.get("HOST_SERVER", "https://127.0.0.1:8443")
 
 
 def adb(*args, check=True):
@@ -146,6 +151,29 @@ def asterisk(cmd):
     return subprocess.run(["docker", "exec", ASTERISK, "asterisk", "-rx", cmd], capture_output=True, text=True).stdout
 
 
+_token = []
+
+
+def rest(method, path, body=None):
+    """REST call as the test user (app token; the local server's certificate is self-signed)."""
+    tls = ssl.create_default_context()
+    tls.check_hostname, tls.verify_mode = False, ssl.CERT_NONE
+
+    def call(m, p, b, token=None):
+        h = {"Content-Type": "application/json", "X-Requested-With": "webphone"}
+        if token:
+            h["Authorization"] = "Bearer " + token
+        req = urllib.request.Request(HOST_SERVER + "/api/v1" + p, method=m, headers=h,
+                                     data=None if b is None else json.dumps(b).encode())
+        with urllib.request.urlopen(req, context=tls, timeout=15) as r:
+            return json.loads(r.read() or b"null")
+
+    if not _token:
+        _token.append(call("POST", "/auth/login", {"username": USER, "password": PASSWORD, "client": "app",
+                                                   "deviceName": "e2e script"})["token"])
+    return call(method, path, body, _token[0])
+
+
 def pick_phone(label_part):
     tap(wait("phone picker", rid="phone-picker"))
     tap(wait("phone " + label_part, contains=label_part))
@@ -213,6 +241,72 @@ def main():
     audio_check("echo call")
     tap(wait("hang up", rid="hangup"))
     wait("back on keypad", rid="phone-picker", timeout=10)
+
+    step("contacts: add one in the Contacts tab")
+    for c in rest("GET", "/contacts")["contacts"]:  # leftovers of an aborted run
+        if c["editable"]:
+            rest("DELETE", f"/contacts/{c['id']}")
+    tap(wait("contacts tab", rid="tab-contacts"))
+    wait("empty phone book", contains="No contacts yet")
+    tap(wait("add contact", rid="add-contact"))
+    type_into(wait("name field", rid="contact-name"), "Echo Desk")
+    hide_keyboard()
+    type_into(wait("number field", rid="contact-number-0"), "600")
+    hide_keyboard()
+    tap(wait("save", text="Save"))
+    wait("contact listed", text="Echo Desk", timeout=10)
+    shot("05b-contacts")
+
+    step("contacts: call from the list")
+    tap(wait("call button of the contact", desc="Call Echo Desk"))
+    n = wait("call screen", rid="call-who", timeout=15)
+    if n.get("text") != "Echo Desk":
+        raise AssertionError(f"call screen shows {n.get('text')!r} instead of the contact name")
+    wait("call running", rid="call-status", timeout=15)
+    audio_check("call from contacts", seconds=4)
+    shot("05c-in-call-contact")
+    tap(wait("hang up", rid="hangup"))
+    wait("back on contacts", rid="add-contact", timeout=10)
+
+    step("contacts: keypad suggestion")
+    tap(wait("keypad tab", rid="tab-keypad"))
+    for ch in "60":
+        tap(wait("key " + ch, desc="key " + ch))
+    tap(wait("suggestion", rid="suggestion", timeout=5))
+    if wait("number", rid="number").get("text") != "600":
+        raise AssertionError("suggestion did not fill in the number")
+    for _ in range(3):
+        tap(wait("delete", desc="Delete"))
+
+    step("contacts: one created on the server shows up live and names the caller")
+    created = rest("POST", "/contacts", {"name": "Front Desk", "numbers": [{"label": "Desk", "number": "2003"}]})
+    tap(wait("contacts tab", rid="tab-contacts"))
+    wait("pushed contact", text="Front Desk", timeout=10)
+    asterisk("channel originate Local/2001@cid-2003 application Milliwatt m")
+    n = wait("incoming screen", rid="incoming-who", timeout=15)
+    shot("05d-incoming-contact")
+    if n.get("text") != "Front Desk":
+        raise AssertionError(f"incoming call shows {n.get('text')!r} instead of the contact name")
+    wait("number line", text="Desk · 2003")
+    tap(wait("decline", rid="decline"))
+    wait("back on contacts", rid="add-contact", timeout=10)
+
+    step("contacts: recents use contact names; delete a contact in the app")
+    tap(wait("recents tab", rid="tab-recents"))
+    wait("named recent call", text="Front Desk", timeout=10)
+    wait("named recent call", text="Echo Desk")
+    shot("05e-recents")
+    tap(wait("contacts tab", rid="tab-contacts"))
+    tap(wait("contact row", text="Echo Desk"))
+    tap(wait("edit", text="Edit"))
+    tap(scroll_to("delete", text="Delete contact"))
+    tap(wait("confirm delete", text="Delete"))
+    time.sleep(1.5)
+    if find(text="Echo Desk") is not None:
+        raise AssertionError("contact not deleted")
+    rest("DELETE", f"/contacts/{created['id']}")
+    wait("phone book empty again", contains="No contacts yet", timeout=10)
+    tap(wait("keypad tab", rid="tab-keypad"))
 
     step("incoming call while the app is open")
     subprocess.run(["docker", "exec", ASTERISK, "asterisk", "-rx",

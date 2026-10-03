@@ -9,7 +9,9 @@ Runs against a live server and the disposable Asterisk of test/asterisk:
          --url https://127.0.0.1:28443 --token <setup token> --out /out"
 
 Flow: first-run setup -> add PBX + extension -> grant access -> call the echo test (600)
-and check audio both ways -> second user (own SIP account) receives a call from the admin.
+and check audio both ways -> save it as a contact from the recents, call it from Contacts ->
+second user (own SIP account) gets a shared contact live and receives a call from the admin,
+shown with the contact's name.
 The page's audio is observed by wrapping WebSocket.send and the AudioWorklet message port;
 the app itself exposes no test hooks.
 """
@@ -238,6 +240,36 @@ def flow(args, browser, ctx, page, errors, shot):
         expect(page.locator(".recent").first).to_contain_text("600")
         shot(page, "08-recents")
 
+        # ---- contacts
+        step("contacts: save the echo test from the recents")
+        page.get_by_role("button", name="Add 600 to contacts").first.click()
+        expect(page.get_by_label("Number").first).to_have_value("600")
+        page.get_by_label("Name", exact=True).fill("Echo Test")
+        page.get_by_label("Label").first.fill("Lab")
+        page.get_by_role("button", name="Save", exact=True).click()
+        expect(page.get_by_text("Contact saved").last).to_be_visible()
+        expect(page.locator(".recent").first).to_contain_text("Echo Test")
+        expect(page.get_by_role("button", name="Add 600 to contacts")).to_have_count(0)
+
+        step("contacts: keypad suggestion and calling from the list")
+        page.get_by_label("Number to call").fill("60")
+        expect(page.locator(".suggest")).to_contain_text("Echo Test")
+        page.locator(".suggest").click()
+        expect(page.get_by_label("Number to call")).to_have_value("600")
+        page.get_by_label("Number to call").fill("")
+        page.get_by_role("tab", name="Contacts").click()
+        page.get_by_label("Search contacts").fill("echo")
+        expect(page.locator(".contact")).to_have_count(1)
+        shot(page, "08b-contacts")
+        page.get_by_role("button", name="Call Echo Test Lab 600").click()
+        expect(page.locator(".in-call .who")).to_have_text("Echo Test")
+        expect(page.locator(".in-call .num")).to_have_text("Lab · 600")
+        expect(page.locator(".status.live")).to_be_visible(timeout=15000)
+        shot(page, "08c-in-call-contact")
+        page.get_by_role("button", name="Hang up").click()
+        expect(page.get_by_text("Call ended")).to_be_visible()
+        page.get_by_label("Search contacts").fill("")
+
         # ---- bob adds his phone and receives a call
         step("bob signs in")
         bctx = new_context(browser, args, {"width": 420, "height": 860})
@@ -259,10 +291,26 @@ def flow(args, browser, ctx, page, errors, shot):
         bob.get_by_role("button", name="Enable").click() if bob.get_by_role("button", name="Enable").is_visible() else None
         shot(bob, "09-bob-mobile")
 
+        step("shared contact reaches bob without a reload")
+        bob.get_by_role("tab", name="Contacts").click()
+        expect(bob.get_by_text("No contacts yet")).to_be_visible()
+        page.get_by_role("button", name="New contact").click()
+        page.get_by_label("Name", exact=True).fill("Front Desk")
+        page.get_by_label("Number").first.fill("2001")
+        page.get_by_label("Shared with all users").check()
+        page.get_by_role("button", name="Save", exact=True).click()
+        expect(page.get_by_text("Contact saved").last).to_be_visible()
+        expect(bob.locator(".contact", has_text="Front Desk")).to_be_visible(timeout=5000)
+        expect(bob.get_by_role("button", name="Edit Front Desk")).to_have_count(0)  # shared: admins only
+        bob.get_by_role("button", name="Add to favorites").click()
+        expect(bob.get_by_role("button", name="Remove from favorites")).to_be_visible()
+        shot(bob, "09b-bob-contacts")
+
         step("admin calls bob")
         page.get_by_label("Number to call").fill("2002")
         page.get_by_role("button", name="Call", exact=True).click()
         expect(bob.get_by_role("alertdialog")).to_be_visible(timeout=15000)
+        expect(bob.get_by_role("alertdialog")).to_contain_text("Front Desk")
         time.sleep(1)
         box = bob.get_by_role("alertdialog").bounding_box()
         step(f"incoming dialog box: {box}")

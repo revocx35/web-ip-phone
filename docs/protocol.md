@@ -30,7 +30,30 @@ All endpoints are under `/api/v1`. JSON in and out; unknown fields in requests a
 | `POST /phones`, `PUT /phones/{id}`, `DELETE /phones/{id}` | own SIP accounts (`verify: true` checks them first) |
 | `POST /phones/{id}/test` | check credentials with the PBX |
 | `GET /calls?limit=`, `DELETE /calls` | call history |
+| `GET /contacts` | `{contacts: [Contact]}`: the user's own and the shared contacts, sorted by name |
+| `POST /contacts`, `PUT /contacts/{id}` | `{name, numbers: [{label, number}], favorite?, shared}`; `shared: true` only for admins |
+| `DELETE /contacts/{id}` | own contacts; shared ones only by admins |
+| `PUT /contacts/{id}/favorite {favorite}` | star any visible contact (favorites are per user, also for shared contacts) |
 | `/admin/...` | users, access, PBXs, extensions, status, call log, audit log, settings (admins only; see `internal/httpapi/server.go`) |
+
+### Contacts
+
+`Contact`: `{id, name, numbers: [{label, number}], favorite, shared, editable, createdAt, updatedAt}`.
+A contact belongs to one user, or is **shared** with all users (`shared: true`, created and changed only
+by admins, recorded in the audit log). `editable` says whether the signed-in user may change it. Other
+users' contacts do not exist for you (`404`).
+
+Limits and validation: name 1-80 characters, 1-10 numbers per contact, labels up to 32 characters,
+2000 contacts per user and 2000 shared ones. The server stores numbers in dialable form: spaces,
+parentheses and `/` are removed, and `-` and `.` too unless the number contains letters
+(`+49 (30) 123-45` becomes `+493012345`, `john.doe` stays); the result must be a valid dial string
+(`[0-9A-Za-z*#+._-]{1,64}`).
+
+Clients show the contact's name for calls by matching the caller's number against the phone book:
+exact match, then the same digits, then the same last 7 digits when both numbers have at least 7
+(so `+49 30 1234567`, `0049301234567` and `0301234567` match); favorites win on duplicates. The
+matching runs on the client (`web/src/contactIndex.ts`, `android/.../phone/ContactIndex.kt`), so
+`CallView.remoteName` stays what the PBX sent.
 
 ## WebSocket `/api/v1/ws`
 
@@ -46,6 +69,7 @@ Text messages are JSON; binary messages carry audio.
 {"type":"ack","req":"r1","call":"<call id>"}     // command accepted (dial returns the call id)
 {"type":"error","req":"r1","code":"forbidden","error":"you are not allowed to call 0900..."}
 {"type":"dtmf","call":"<id>","digit":"5"}        // DTMF received from the PBX
+{"type":"contacts"}                              // the phone book changed (other device, shared contact): GET /contacts again
 {"type":"pong"}
 ```
 

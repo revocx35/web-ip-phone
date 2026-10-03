@@ -145,6 +145,7 @@ class WebPhoneApp : Application() {
 
     fun signOutLocal(reason: String?) {
         phone.stop()
+        phone.clearContacts()
         PhoneService.stop(this)
         prefs.signOut()
         api = null

@@ -30,6 +30,7 @@ For UI work, `cd web && npm run dev` serves the UI with hot reload and proxies `
 ```bash
 go test ./...                                    # unit tests (no network)
 CGO_ENABLED=1 go test -race ./...
+cd web && npm test                               # web unit tests (node --test, Node 24 strips the types)
 
 docker compose -f test/docker-compose.yml up -d --build     # Asterisk on 127.0.0.1:5160
 go test -tags integration ./internal/...         # SIP engine + full stack against Asterisk
@@ -37,7 +38,12 @@ go test -tags integration ./internal/...         # SIP engine + full stack again
 
 The integration tests use SIP ports 5071/5073 and RTP 22000-22100/24000-24100 on the host.
 
-Browser test (Firefox, fake microphone, two users calling each other through Asterisk): start a server
+The test Asterisk has a context `cid-2003` for incoming calls with a known caller number (contact name
+tests): `docker exec webphone-test-pbx asterisk -rx "channel originate Local/2001@cid-2003 application Milliwatt m"`.
+After changing `test/asterisk/conf/extensions.conf` without rebuilding the image:
+`docker cp test/asterisk/conf/extensions.conf webphone-test-pbx:/etc/asterisk/ && docker exec webphone-test-pbx asterisk -rx "dialplan reload"`.
+
+Browser test (Firefox, fake microphone, two users calling each other through Asterisk, contacts): start a server
 with `WEBPHONE_SETUP_TOKEN` set and a fresh data directory, then run `tools/browser_test.py` in the
 Playwright image (command in the script's docstring; PulseAudio with a null sink is needed for audio).
 

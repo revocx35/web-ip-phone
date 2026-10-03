@@ -184,6 +184,30 @@ CREATE TABLE settings (
 	value TEXT NOT NULL
 );
 `,
+	// v2: contacts (owner_id NULL = shared with all users, managed by admins)
+	`
+CREATE TABLE contacts (
+	id         INTEGER PRIMARY KEY,
+	owner_id   INTEGER REFERENCES users(id) ON DELETE CASCADE,
+	name       TEXT NOT NULL,
+	created_at INTEGER NOT NULL,
+	updated_at INTEGER NOT NULL
+);
+CREATE INDEX contacts_owner ON contacts(owner_id);
+CREATE TABLE contact_numbers (
+	contact_id INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+	position   INTEGER NOT NULL,
+	label      TEXT NOT NULL DEFAULT '',
+	number     TEXT NOT NULL,
+	PRIMARY KEY (contact_id, position)
+);
+CREATE TABLE contact_favorites (
+	user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	contact_id INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+	PRIMARY KEY (user_id, contact_id)
+);
+CREATE INDEX contact_favorites_contact ON contact_favorites(contact_id);
+`,
 }
 
 func (s *Store) migrate(ctx context.Context) error {

@@ -1,7 +1,7 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { toastError } from '../store';
-import { IconX } from './icons';
+import { IconUser, IconX } from './icons';
 
 export function Modal(props: { title: string; onClose: () => void; children: ComponentChildren; wide?: boolean; footer?: ComponentChildren }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -25,6 +25,14 @@ export function Modal(props: { title: string; onClose: () => void; children: Com
       </div>
     </div>
   );
+}
+
+/** Initials of a name for avatars (a person icon for numbers). */
+export function Initials({ name }: { name: string }) {
+  const s = name.trim();
+  if (!/\p{L}/u.test(s)) return <IconUser />;
+  const parts = s.split(/\s+/).filter((p) => /\p{L}/u.test(p));
+  return <>{(parts.length > 1 ? parts[0][0] + parts[1][0] : parts[0][0]).toUpperCase()}</>;
 }
 
 export function Field(props: { label: string; hint?: ComponentChildren; children: ComponentChildren }) {

@@ -33,10 +33,20 @@ object AppIcons {
     val Backspace = icon("backspace", "M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM18 9l-6 6M12 9l6 6")
     val ArrowOut = icon("out", "M7 17L17 7M8 7h9v9")
     val ArrowIn = icon("in", "M17 7L7 17M16 17H7V8")
+    val Contacts = icon("contacts", "M9 3a4 4 0 1 0 0 8 4 4 0 1 0 0-8", "M1 21a8 8 0 0 1 16 0M16 3.1a4 4 0 0 1 0 7.8M23 21a8 8 0 0 0-5-7.4")
+    private const val STAR = "M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5-4.8-4.6 6.6-.9z"
+    val Star = icon("star", STAR)
+    val StarFilled = icon("star-filled", STAR, fill = true)
+    val Edit = icon("edit", "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z")
+    val UserPlus = icon("user-plus", "M9 4a4 4 0 1 0 0 8 4 4 0 1 0 0-8", "M1 21a8 8 0 0 1 16 0M20 8v6M17 11h6")
+    val Search = icon("search", "M11 4a7 7 0 1 0 0 14 7 7 0 1 0 0-14", "M21 21l-4.3-4.3")
+    val Plus = icon("plus", "M12 5v14M5 12h14")
+    val Close = icon("close", "M18 6L6 18M6 6l12 12")
 }
 
 fun Tab.icon(): ImageVector = when (this) {
     Tab.KEYPAD -> AppIcons.Grid
     Tab.RECENTS -> AppIcons.Clock
+    Tab.CONTACTS -> AppIcons.Contacts
     Tab.SETTINGS -> AppIcons.Settings
 }

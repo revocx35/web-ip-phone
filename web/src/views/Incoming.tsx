@@ -1,16 +1,19 @@
 import { useStore, toastError } from '../store';
 import { phone, phoneState } from '../phone/client';
 import { IconPhone } from '../components/icons';
-import { Initials } from './Phone';
+import { Initials } from '../components/ui';
+import { contacts } from '../contacts';
 
 /** Full-screen incoming call prompt, shown on every page. */
 export function IncomingCallModal() {
   const ps = useStore(phoneState);
+  useStore(contacts);
   const call = ps.calls.find((c) => c.state === 'incoming' && !c.mine);
   if (!call) return null;
   const busy = ps.calls.find((c) => c.mine && c.attached && c.state !== 'ended');
   const ph = ps.phones.find((p) => p.id === call.phoneId);
-  const name = call.remoteName || call.remote;
+  const hit = contacts.get().index.lookup(call.remote);
+  const name = hit?.contact.name || call.remoteName || call.remote;
 
   const answer = async () => {
     try {
@@ -31,7 +34,7 @@ export function IncomingCallModal() {
         <div style={{ fontSize: '1.4rem', fontWeight: 650 }} class="ellipsis">
           {name}
         </div>
-        {call.remoteName && <div class="muted">{call.remote}</div>}
+        {name !== call.remote && <div class="muted">{(hit?.number.label ? hit.number.label + ' · ' : '') + call.remote}</div>}
         {busy && <div class="banner warn" style={{ marginTop: '12px' }}>Answering ends your current call.</div>}
         <div class="actions">
           <div>

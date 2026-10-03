@@ -11,6 +11,10 @@ port. No VPN, no SIP or RTP ports open to the internet, no SIP client configurat
 <img src="docs/screenshots/web-access.png" width="49%" alt="Admin: access of a user to PBXs and extensions">
 </p>
 <p>
+<img src="docs/screenshots/web-contacts.png" width="49%" alt="Web UI: contacts next to the keypad">
+<img src="docs/screenshots/android-contacts.png" width="24%" alt="Android contacts">
+</p>
+<p>
 <img src="docs/screenshots/android-keypad.png" width="24%" alt="Android keypad">
 <img src="docs/screenshots/android-in-call.png" width="24%" alt="Android in-call screen">
 <img src="docs/screenshots/android-incoming.png" width="24%" alt="Android incoming call">
@@ -23,6 +27,11 @@ port. No VPN, no SIP or RTP ports open to the internet, no SIP client configurat
   and desktop notifications, audio device selection. Works in current Chrome, Edge, Firefox and Safari.
 - **Android app** (Kotlin, Jetpack Compose): same features, incoming calls also when the app is closed
   (lock-screen call screen), earpiece/speaker/Bluetooth/headset, move a running call between devices.
+- **Contacts**: a phone book per user, synced live between the web UI and the app, with favorites,
+  several numbers per contact, search and one-click calling. Callers are shown by name (incoming call,
+  notifications, recents), the keypad and transfer suggest contacts, and recent callers can be saved
+  with one click. Admins can add shared contacts for everyone; the app imports single contacts from the
+  phone's address book without needing the contacts permission.
 - **Several PBXs**, any number of extensions, UDP/TCP/TLS, G.711 µ-law/A-law, RFC 4733 or SIP INFO DTMF.
 - **Admin-controlled access**: the first visitor creates the admin account; only admins create or delete
   accounts. Per user and PBX the admin chooses *no access*, *selected extensions* (credentials stay with

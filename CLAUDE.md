@@ -36,6 +36,7 @@ Commit the documentation together with the change (or right after it) and push i
 go build ./... && go vet ./...
 go test ./...                                   # unit tests, no PBX needed (~2 s)
 CGO_ENABLED=1 go test -race ./...               # race detector
+cd web && npm test                              # web unit tests (contact matching), node --test
 
 # integration tests against the disposable Asterisk (host networking, SIP 127.0.0.1:5160)
 docker compose -f test/docker-compose.yml up -d --build
@@ -71,7 +72,8 @@ Test credentials, the user's PBX details and which extension may be used live in
 - `cmd/webphone/`: main (wiring, TLS, housekeeping) + subcommands `healthcheck`, `reset-password`, `reset-2fa`.
 - `internal/config`: `WEBPHONE_*` environment. Policies an admin can change live in the DB (`store.Settings`).
 - `internal/store`: SQLite (modernc, no cgo). Migrations are append-only (`migrations` slice); `usableSQL`
-  in `phones.go` is THE authorization rule for "may user X use phone Y".
+  in `phones.go` is THE authorization rule for "may user X use phone Y". `contacts.go`: phone book
+  (`owner_id` NULL = shared), `visibleContactSQL` = own + shared.
 - `internal/auth`: argon2id, tokens, TOTP (RFC 6238), `Throttle` (login backoff), `RateLimiter`.
 - `internal/secretbox`: AES-GCM for SIP passwords/TOTP seeds, bound to a context string (AAD).
 - `internal/sipua`: SIP engine on sipgo: `engine.go` (UA, listeners, source filter, routing),
@@ -80,12 +82,16 @@ Test credentials, the user's PBX details and which extension may be used live in
 - `internal/media`: RTP session (paced 20 ms sender, RFC 4733 DTMF, symmetric RTP), G.711.
 - `internal/phone`: the service between clients and the engine: who is online on which phone,
   which client carries a call's audio, authorization of every WS command, call history.
-- `internal/httpapi`: REST handlers, CSRF/origin checks, WebSocket (`ws.go`), SPA serving.
+- `internal/httpapi`: REST handlers, CSRF/origin checks, WebSocket (`ws.go`), SPA serving;
+  `contact_handlers.go` (contacts, number canonicalization).
 - `web/`: the UI. `src/phone/client.ts` (WS + call logic), `src/phone/audio.ts` + `public/worklets/*.js`
-  (capture/playback AudioWorklets), `src/views`, `src/admin`.
-- `android/`: Kotlin/Compose app. `phone/PhoneClient.kt` mirrors `web/src/phone/client.ts`.
+  (capture/playback AudioWorklets), `src/views`, `src/admin`. Contacts: `src/contacts.ts` (store, reload),
+  `src/contactIndex.ts` (pure matching/search, tested in `web/test/`), `src/views/Contacts.tsx`.
+- `android/`: Kotlin/Compose app. `phone/PhoneClient.kt` mirrors `web/src/phone/client.ts`;
+  `phone/ContactIndex.kt` mirrors `web/src/contactIndex.ts`; `ui/ContactsScreen.kt`.
 - `test/asterisk`: disposable Asterisk with extensions 2001-2004 and test numbers (600 echo, 601 tone,
-  602 DTMF capture, 603 busy, 604 early media, 605 remote hangup, 606 MOH, 699 never answers).
+  602 DTMF capture, 603 busy, 604 early media, 605 remote hangup, 606 MOH, 699 never answers); context
+  `cid-2003` rings an extension with caller number 2003 (`channel originate Local/2001@cid-2003 application Milliwatt m`).
 - `tools/`: `browser_test.py` (Playwright), `livecall` (CLI test call).
 
 ## Rules
@@ -101,14 +107,18 @@ Test credentials, the user's PBX details and which extension may be used live in
   Vite `assetsInlineLimit: 0`).
 - Keep the WS protocol in sync: `internal/phone/protocol.go`, `web/src/api.ts` + `client.ts`,
   `android/.../net/Models.kt` + `PhoneClient.kt`, and `docs/protocol.md`.
+- Caller-name matching exists twice (`web/src/contactIndex.ts`, `android/.../phone/ContactIndex.kt`):
+  change both and their shared test cases (`web/test/contactIndex.test.ts`, `ContactIndexTest.kt`).
 - Android: test hooks only behind `BuildConfig.TEST_HOOKS` (debug/e2e build types, false in release).
   Release signing key location is in Claude's project memory, never in the repo.
 - Commits end with the Co-Authored-By trailer; releases = tag + GHCR image + GitHub Release with the APK.
 
 ## Environment gotchas (this LXC)
 
-- ~2 GB free disk: build Docker images in CI; locally build the binary and wrap it in the distroless
-  base (see `docs/development.md`).
+- Little free disk (0.2-2 GB): build Docker images in CI; locally build the binary and wrap it in the distroless
+  base (see `docs/development.md`). Watch `df -h /` during Gradle builds: at ~0 free the shared emulator
+  hung and crashed (2026-10-03), and it refuses to boot again while free space is low ("not enough disk
+  space to run avd"). Regenerable space of this project: `android/app/build`, `go clean -cache`.
 - 127.0.0.1:18443 is taken by another project's container; use 28443 for local servers.
 - The Android emulator (`emulator-5554`, API 37) is shared with other projects; `-no-audio`, so audio is
   verified with the debug/e2e test tone and the `CallAudio: stats` log line.

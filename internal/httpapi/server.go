@@ -137,6 +137,11 @@ func (s *Server) Handler() http.Handler {
 	api("POST /api/v1/phones/{id}/test", s.handleTestPhone, s.authed(0), s.csrf)
 	api("GET /api/v1/calls", s.handleCalls, s.authed(0))
 	api("DELETE /api/v1/calls", s.handleClearCalls, s.authed(0), s.csrf)
+	api("GET /api/v1/contacts", s.handleContacts, s.authed(0))
+	api("POST /api/v1/contacts", s.handleCreateContact, s.authed(0), s.csrf)
+	api("PUT /api/v1/contacts/{id}", s.handleUpdateContact, s.authed(0), s.csrf)
+	api("DELETE /api/v1/contacts/{id}", s.handleDeleteContact, s.authed(0), s.csrf)
+	api("PUT /api/v1/contacts/{id}/favorite", s.handleFavoriteContact, s.authed(0), s.csrf)
 	mux.Handle("GET /api/v1/ws", s.errorHandler(s.authed(0)(s.handleWS)))
 
 	// admin

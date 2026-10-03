@@ -230,6 +230,14 @@ func (s *Service) DisconnectOtherSessions(userID, keepSession int64, reason stri
 	}
 }
 
+// ContactsChanged tells a user's clients (all clients for userID 0: shared contacts) to
+// reload the phone book.
+func (s *Service) ContactsChanged(userID int64) {
+	for _, c := range s.clientsWhere(func(c *Client) bool { return userID == 0 || c.UserID == userID }) {
+		c.out.SendJSON(msgContacts{Type: "contacts"})
+	}
+}
+
 func (s *Service) clientsWhere(f func(*Client) bool) []*Client {
 	s.mu.Lock()
 	defer s.mu.Unlock()

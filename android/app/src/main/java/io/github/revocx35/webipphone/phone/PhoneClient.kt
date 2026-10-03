@@ -59,6 +59,10 @@ class PhoneClient(private val app: WebPhoneApp) {
     val ringer = Ringer(app)
     val router = AudioRouter(app)
     val audio = CallAudio(app) { frame -> ws?.send(frame.toByteString()) ?: false }
+    /** The phone book (own + shared contacts); names callers on every screen and notification. */
+    val contacts = MutableStateFlow(ContactIndex.EMPTY)
+    private var contactsJob: Job? = null
+    private var contactsAgain = false
 
     private var ws: WebSocket? = null
     private var wanted = false
@@ -162,7 +166,7 @@ class PhoneClient(private val app: WebPhoneApp) {
             "hello" -> {
                 retry = 0
                 val phones = obj.list("phones", PhoneView.serializer())
-                val calls = obj.list("calls", CallView.serializer())
+                val calls = obj.list("calls", CallView.serializer()).map(::named)
                 var selected = state.value.selected
                 if (phones.none { it.id == selected }) selected = phones.firstOrNull()?.id ?: 0
                 state.update { it.copy(conn = ConnState.ONLINE, phones = phones, calls = calls, selected = selected,
@@ -172,6 +176,7 @@ class PhoneClient(private val app: WebPhoneApp) {
                     if (calls.any { it.id == id && it.mine && !it.ended }) send(mapOf("type" to "attach", "call" to id))
                 }
                 reconcile()
+                reloadContacts() // also catches changes made while this connection was down
             }
             "phones" -> {
                 val phones = obj.list("phones", PhoneView.serializer())
@@ -183,8 +188,9 @@ class PhoneClient(private val app: WebPhoneApp) {
             }
             "call" -> {
                 val call = runCatching { json.decodeFromJsonElement(CallView.serializer(), obj["call"]!!) }.getOrNull() ?: return
-                upsert(call)
+                upsert(named(call))
             }
+            "contacts" -> reloadContacts()
             "ack" -> pending.remove(obj["req"]?.jsonPrimitive?.content)?.complete((obj["call"] as? JsonPrimitive)?.content)
             "error" -> {
                 val req = obj["req"]?.jsonPrimitive?.content
@@ -192,6 +198,37 @@ class PhoneClient(private val app: WebPhoneApp) {
                 pending.remove(req)?.completeExceptionally(CommandException(msg)) ?: Log.w(TAG, "server: $msg")
             }
         }
+    }
+
+    /** Reloads the phone book; requests while a load runs are merged into one more load. */
+    fun reloadContacts() {
+        val api = app.api ?: return
+        if (contactsJob?.isActive == true) {
+            contactsAgain = true
+            return
+        }
+        contactsJob = scope.launch {
+            do {
+                contactsAgain = false
+                runCatching { api.contacts() }
+                    .onSuccess { list ->
+                        contacts.value = ContactIndex(list)
+                        state.update { s -> s.copy(calls = s.calls.map(::named)) }
+                    }
+                    .onFailure { Log.w(TAG, "contacts: ${it.message}") }
+            } while (contactsAgain)
+        }
+    }
+
+    /** Forgets the phone book (sign-out). */
+    fun clearContacts() {
+        contactsJob?.cancel()
+        contacts.value = ContactIndex.EMPTY
+    }
+
+    private fun named(c: CallView): CallView {
+        val hit = contacts.value.lookup(c.remote)
+        return c.copy(contactName = hit?.contact?.name ?: "", contactLabel = hit?.number?.label ?: "")
     }
 
     private fun <T> JsonObject.list(key: String, s: kotlinx.serialization.KSerializer<T>): List<T> =

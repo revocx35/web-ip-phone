@@ -128,6 +128,23 @@ export interface CallRecord {
   sipCode: number;
 }
 
+export interface ContactNumber {
+  label: string;
+  number: string;
+}
+
+export interface Contact {
+  id: number;
+  name: string;
+  numbers: ContactNumber[];
+  favorite: boolean;
+  /** In the phone book of all users (managed by administrators). */
+  shared: boolean;
+  editable: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Phone {
   id: number;
   pbxId: number;

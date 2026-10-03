@@ -40,7 +40,7 @@ admin allowed "any SIP account"). A **client** is one connected browser tab or a
 | `internal/phone` | `Service`: clients, online phones, call ownership, authorization of every call command, call history |
 | `internal/sipua` | SIP engine on [sipgo](https://github.com/emiago/sipgo): registrations, calls, SDP, in-dialog requests |
 | `internal/media` | RTP sessions (paced sender, RFC 4733 DTMF, symmetric RTP), G.711 |
-| `internal/store` | SQLite: users, sessions, PBXs, phones, access grants, calls, audit log, settings |
+| `internal/store` | SQLite: users, sessions, PBXs, phones, access grants, calls, contacts, audit log, settings |
 | `internal/auth` | argon2id, session tokens, TOTP, login throttle, rate limiter |
 | `internal/secretbox` | AES-256-GCM encryption of SIP passwords and TOTP seeds (context-bound) |
 | `internal/dialrule` | Asterisk-style dial patterns per user and PBX |
@@ -52,7 +52,9 @@ users ─┬─< sessions            (token hash, kind web|app, idle + absolute 
        ├─< recovery_codes      (SHA-256 of 2FA recovery codes)
        ├─< pbx_access >── pbxs (mode: any | selected, dial_rules)
        ├─< phone_access >── phones   (provisioned phones granted to the user)
-       └─< phones (owner_id)   (own phones; owner_id NULL = provisioned)
+       ├─< phones (owner_id)   (own phones; owner_id NULL = provisioned)
+       ├─< contacts (owner_id) (own contacts; owner_id NULL = shared with all users) ─< contact_numbers
+       └─< contact_favorites >── contacts  (stars are per user, also on shared contacts)
 calls (history), audit_log, settings (policy JSON)
 ```
 
@@ -61,6 +63,24 @@ calls (history), audit_log, settings (policy JSON)
 granted to U in `phone_access`. Everything (REST, WebSocket commands, incoming-call routing) goes
 through this rule; `phone.Service.Revalidate` re-applies it to live connections and calls after every
 admin change, so revoked access ends calls immediately.
+
+### 3.1 Contacts (since the unreleased version after 1.0.1)
+
+The phone book lives on the server so the web UI and the app show the same contacts. Schema v2 adds
+`contacts` (`owner_id` NULL = **shared**), `contact_numbers` (ordered by `position`) and
+`contact_favorites`. REST: `/api/v1/contacts` (`internal/httpapi/contact_handlers.go`); a user sees own +
+shared contacts, changes only own ones; admins also create/change shared ones (audited as
+`contact.*`). Numbers are stored dialable (separators removed, see `contactNumber`) and validated with
+`sipua.ValidDialString`. Every change sends `{"type":"contacts"}` over the WebSocket to the owner's
+clients, or to all clients for shared contacts (`phone.Service.ContactsChanged`); clients then reload
+`GET /contacts`. They also reload after every `hello`, which covers changes made while disconnected.
+
+**Caller names are resolved on the client**, not in `CallView`: `web/src/contactIndex.ts` and
+`android/.../phone/ContactIndex.kt` implement the same matching (exact, same digits, same last 7
+digits; favorites win) and are tested with the same cases. The web UI resolves at render time
+(`callerName`, `useStore(contacts)`); Android copies the name into `CallView.contactName` (a
+`@Transient` field) in `PhoneClient` on every call update and after every phone-book reload, so
+`CallView.who` is right everywhere, including notifications built in the background.
 
 ## 4. Registration
 
@@ -171,6 +191,11 @@ background:
 3. Neither: notification only. `CallScreenPrompt` (once, after sign-in), `CallScreenBanner` (keypad) and
    `CallScreenSettings` explain it and open the right settings page.
 
+Tabs: Keypad, Recents, Contacts (`ui/ContactsScreen.kt`), Settings. `PhoneClient.contacts` holds the
+phone book (`ContactIndex`); the contact editor can import one entry from the device through the system
+contact picker (`ACTION_PICK` on `Phone.CONTENT_TYPE`, read access to that entry only, no
+`READ_CONTACTS` permission).
+
 While the app is in the foreground it shows its own incoming screen and posts no notification
 (`PhoneClient.onForegroundChanged`). After answering on the lock screen, `MainActivity` sets
 `setShowWhenLocked(true)` while a call is active, so the in-call screen stays over the keyguard.
@@ -180,11 +205,12 @@ While the app is in the foreground it shows its own incoming screen and posts no
 | Layer | Where | Needs |
 |---|---|---|
 | Unit (Go) | `go test ./...` (+ `-race`) | nothing; httpapi tests run the whole API in-process with a fake SIP engine and a fake clock |
+| Unit (web) | `cd web && npm test` (`node --test`, Node 24 type stripping) | nothing; contact matching (`web/test/`) |
 | SIP engine | `internal/sipua/integration_test.go` (`-tags integration`) | test Asterisk; each test engine gets its own SIP port |
 | Full stack | `internal/httpapi/e2e_integration_test.go` | test Asterisk; two users call each other over REST+WS+SIP |
-| Browser | `tools/browser_test.py` (Firefox, Playwright, PulseAudio null sink) | running server + Asterisk; audio checked by wrapping `WebSocket.send` / worklet port |
-| Android unit | `./gradlew :app:testDebugUnitTest` | G.711, jitter buffer, decimator, URL/fingerprint |
-| Android e2e | `android/scripts/e2e.py`, `lockscreen_test.py` | emulator + `tools/dev-stack.sh up`; debug/e2e builds replace the mic by a 1 kHz tone and log `CallAudio: stats` |
+| Browser | `tools/browser_test.py` (Firefox, Playwright, PulseAudio null sink) | running server + Asterisk; audio checked by wrapping `WebSocket.send` / worklet port; contacts: save from recents, call from the list, shared contact pushed live to a second user, incoming call shown by contact name |
+| Android unit | `./gradlew :app:testDebugUnitTest` | G.711, jitter buffer, decimator, URL/fingerprint, contact matching (same cases as the web) |
+| Android e2e | `android/scripts/e2e.py`, `lockscreen_test.py` | emulator + `tools/dev-stack.sh up`; debug/e2e builds replace the mic by a 1 kHz tone and log `CallAudio: stats`; contacts steps use the REST API (`HOST_SERVER`) and the Asterisk context `cid-2003` (caller 2003) |
 | Real PBX | `tools/livecall`, `REAL_PBX_NUMBER` in e2e.py | user's FreePBX, **extension 1007 only**, `*43` echo (22 s spoken intro, then echo) |
 
 CI (`.github/workflows/ci.yml`) runs all but the Android emulator and real-PBX layers.
@@ -206,6 +232,13 @@ CI (`.github/workflows/ci.yml`) runs all but the Android emulator and real-PBX l
   against a local Asterisk 20/22 and the user's FreePBX 17 (Asterisk 22) with real `*43` calls.
 - **1.0.1 (2026-10-01)**: Android shows incoming calls over the lock screen (9.1). Reported by the user:
   "rings but I can't see the call screen unless I tap the notification".
+- **Unreleased (main, 2026-10-03): contacts** in the web UI and the Android app (3.1), requested by the
+  user ("add contacts both to the web ui and the android app"). Server-side phone book with shared
+  (admin) contacts, per-user favorites and live sync; caller names on incoming/in-call screens,
+  notifications and recents; save callers from recents; keypad and transfer suggestions; Android import
+  from the device address book. Schema v2. Verified with Go unit/race/integration tests, web unit tests,
+  the Firefox browser test, the Android emulator e2e (incl. a background notification named by contact)
+  and an upgrade of a 1.0.1 database.
 
 ## 13. Design decisions (and why)
 
@@ -226,6 +259,19 @@ CI (`.github/workflows/ci.yml`) runs all but the Android emulator and real-PBX l
   "trust all" for self-signed servers.
 - **No push service**: background calls ride on a foreground service + WebSocket (`specialUse` FGS type
   while idle, `phoneCall|microphone` during calls).
+- **Contacts on the server, not on the device**: one phone book for web and app, works for browsers,
+  survives reinstalls; the app needs no contacts permission (one-entry import via the system picker).
+- **Shared contacts = `owner_id NULL`** (like provisioned phones) instead of a separate table: one code
+  path; only admins write them, audited. Favorites in their own table so stars stay personal on shared
+  contacts.
+- **Caller names resolved on the clients**: a call is offered to several users with different phone
+  books, so the server cannot put one name into `CallView`; the phone book is small and already on the
+  client. Matching rule (exact / digits / last 7 digits, as Android's caller-ID matching) is duplicated in
+  TS and Kotlin with identical tests.
+- **WebSocket `contacts` message only invalidates** (clients refetch) instead of carrying data: no second
+  serialization of contacts, and `hello` refetches anyway after reconnects.
+- **Numbers stored dialable** (separators stripped on the server): every client can dial them as is, and
+  matching/dial rules see the same string the PBX gets.
 
 ## 14. Notes for future sessions
 
@@ -245,6 +291,22 @@ CI (`.github/workflows/ci.yml`) runs all but the Android emulator and real-PBX l
 - In-dialog requests built by sipgo use the dialog's own option functions, so `WithClientConnectionAddr`
   does not apply to them (they reuse the pooled listener connection by remote address).
 
+**Contacts work (2026-10-03)**:
+- Compose: when a dialog window opens or closes, focus goes to the first focusable of the screen; with a
+  search `TextField` first, saving a contact popped up the keyboard. Clearing focus in `onFocusChanged`
+  only ping-pongs. Fix: make the screen's container `focusable()` (ContactsScreen). Note `onFocusChanged`
+  on a `TextField`'s modifier reports `hasFocus`, not `isFocused`.
+- Buttons in an `AlertDialog`'s button slots are outside the content's `testTagsAsResourceId`; e2e taps
+  them by text ("Save", "Edit", "Close").
+- Android 17's contact picker (`com.android.contactspicker`) is multi-select style: pick, then *Done*.
+  Seed a device contact for manual tests with `adb shell content insert` (raw_contacts + data) and delete
+  it afterwards (the emulator is shared).
+- Node 24 type stripping cannot run TS parameter properties (`constructor(readonly x)`); keep
+  `contactIndex.ts` to erasable syntax. `node --test <dir>` does not find `.ts` files; use the glob.
+- `GET /admin/audit` returns a bare JSON array.
+- Disk on the dev LXC dropped to ~400 MB during this work; the test Asterisk image was not rebuilt (its
+  base image is not cached): `docker cp` the dialplan and `dialplan reload` instead (docs/development.md).
+
 **Asterisk/FreePBX behavior**: the endpoint's configured callerid replaces the From display name;
 OPTIONS from unknown sources get 401 (still proves reachability); FreePBX `Max Contacts` defaults to 1.
 
@@ -260,7 +322,9 @@ releases as tag + image + GitHub Release with notes. Local secrets live in git-i
 the Android keystore is in `/root/.android-signing/` (never commit).
 
 **Ideas / backlog** (not started): G.722 or Opus towards the PBX; SRTP (SDES) for PBX legs; IPv6 SIP;
-attended transfer and call waiting (one call per device today); contacts/speed dial; optional WebRTC
+attended transfer and call waiting (one call per device today); contacts: vCard/CSV import and export,
+speed dial (long-press 1-9), directory sync from FreePBX Contact Manager / CardDAV / LDAP, shared
+phone books per PBX or group; optional WebRTC
 media for lossy mobile links; Android Telecom `ConnectionService` integration (Bluetooth/car UI);
 UnifiedPush or FCM for battery-friendlier background calls; F-Droid listing (reproducible build like
 the user's NPM Mobile app); per-PBX outbound caller ID rules; admin UI for live registrations per contact.

@@ -1,6 +1,7 @@
 package io.github.revocx35.webipphone.net
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlinx.serialization.json.Json
 
 /** Mirrors the server's JSON (internal/httpapi, internal/phone/protocol.go). */
@@ -66,8 +67,14 @@ data class CallView(
     val endStatus: String? = null,
     val attached: Boolean = false,
     val mine: Boolean = false,
+    /** Set on the device from the phone book (PhoneClient), never sent by the server. */
+    @Transient val contactName: String = "",
+    @Transient val contactLabel: String = "",
 ) {
-    val who: String get() = remoteName.ifBlank { remote }
+    /** Contact name, else the name the PBX sent, else the number. */
+    val who: String get() = contactName.ifBlank { remoteName.ifBlank { remote } }
+    /** Second line under [who]: the number (with the contact's label for it), or "" if [who] is the number. */
+    val numberLine: String get() = if (who == remote) "" else listOf(contactLabel, remote).filter { it.isNotBlank() }.joinToString(" · ")
     val ended: Boolean get() = state == "ended"
 }
 
@@ -86,6 +93,23 @@ data class CallRecord(
     val status: String = "",
     val reason: String = "",
 )
+
+@Serializable
+data class ContactNumber(val label: String = "", val number: String = "")
+
+@Serializable
+data class Contact(
+    val id: Long,
+    val name: String = "",
+    val numbers: List<ContactNumber> = emptyList(),
+    val favorite: Boolean = false,
+    /** In the phone book of all users (managed by administrators). */
+    val shared: Boolean = false,
+    val editable: Boolean = false,
+)
+
+@Serializable
+data class ContactsResponse(val contacts: List<Contact> = emptyList())
 
 @Serializable
 data class OwnPhone(

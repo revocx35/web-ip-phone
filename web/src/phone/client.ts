@@ -1,6 +1,7 @@
 // WebSocket connection to the server and the client-side call logic.
 import type { CallView, Me, PhoneView } from '../api';
 import { Store, toast } from '../store';
+import { callerName, clearContacts, loadContacts } from '../contacts';
 import { audio } from './audio';
 
 export interface PhoneState {
@@ -55,6 +56,7 @@ class PhoneClient {
     this.ws = undefined;
     this.stopAudio();
     audio.stopTone();
+    clearContacts();
     phoneState.set({ status: 'offline', phones: [], calls: [], selected: null });
   }
 
@@ -107,6 +109,7 @@ class PhoneClient {
         phoneState.set((s) => ({ ...s, status: 'online', phones, calls: m.calls, selected, version: m.version }));
         this.goOnline(selected);
         this.reconcile();
+        loadContacts(); // also catches changes made while this connection was down
         break;
       }
       case 'phones': {
@@ -121,6 +124,9 @@ class PhoneClient {
       }
       case 'call':
         this.upsertCall(m.call);
+        break;
+      case 'contacts':
+        loadContacts();
         break;
       case 'ack':
       case 'error': {
@@ -154,7 +160,7 @@ class PhoneClient {
         }, 2500),
       );
       if (c.mine && c.endStatus && !['answered', 'cancelled', 'answered_elsewhere', 'rejected'].includes(c.endStatus) && c.direction === 'out') {
-        toast(`Call to ${c.remote}: ${c.endReason || c.endStatus}`, 'error');
+        toast(`Call to ${callerName(c.remote)}: ${c.endReason || c.endStatus}`, 'error');
       }
     }
     this.reconcile();
@@ -198,8 +204,9 @@ class PhoneClient {
 
   private notify(c: CallView) {
     if (!document.hidden || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    const name = callerName(c.remote, c.remoteName);
     const n = new Notification('Incoming call', {
-      body: c.remoteName ? `${c.remoteName} (${c.remote})` : c.remote,
+      body: name !== c.remote ? `${name} (${c.remote})` : c.remote,
       tag: 'call-' + c.id,
       requireInteraction: true,
     });

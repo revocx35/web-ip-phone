@@ -37,6 +37,23 @@ Signing certificate SHA-256 (verify with `apksigner verify --print-certs`):
 - If the network changes during a call (Wi-Fi to mobile data), the app reconnects and resumes the call
   (the server keeps it for 30 s).
 
+## Contacts
+
+The *Contacts* tab is your phone book on the server, the same as in the web UI: a contact added or
+changed on one device appears on the others right away.
+
+- **Search** by name or number; favorites (star) are listed first.
+- Tap the phone icon to call (a menu appears for contacts with several numbers), or tap the contact for
+  its numbers, the favorite star and *Edit*.
+- **Add**: the + button, or the person icon next to an unknown number in *Recents*. *From phone
+  contacts* copies a name and number from your phone's address book through Android's contact picker;
+  the app has no access to the rest of your contacts and needs no permission for this.
+- Contacts marked *Shared* come from your administrator and are visible to all users; only
+  administrators can change them.
+- Callers are shown with their contact name on the incoming call screen, in notifications, during the
+  call and in *Recents*. While you type on the keypad, a matching contact is suggested; tap it to use its
+  number. The transfer dialog suggests contacts too.
+
 ## Receiving calls when the app is closed
 
 *Settings -> Receive calls when the app is closed* (on by default) keeps a connection to your server in
