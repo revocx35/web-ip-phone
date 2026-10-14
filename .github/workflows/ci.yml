@@ -32,7 +32,7 @@ jobs:
           npm test
           npm run build
           npm audit --omit=dev --audit-level=high
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: web-dist
           path: web/dist
@@ -106,7 +106,7 @@ jobs:
              pactl load-module module-null-sink sink_name=null && pip install -q playwright==1.55.0 && \
              python /repo/tools/browser_test.py --url https://127.0.0.1:28443 --token CITE-STTO-KENA-BCDE-FGHJ --out /out"
       - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: browser-test
           path: |
@@ -132,7 +132,7 @@ jobs:
           validate-wrappers: true
       - name: Unit tests, lint, debug and minified builds
         run: ./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleE2e
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: web-ip-phone-android-debug
           path: android/app/build/outputs/apk/debug/*.apk
