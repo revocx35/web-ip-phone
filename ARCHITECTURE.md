@@ -256,6 +256,9 @@ CI (`.github/workflows/ci.yml`) runs all but the Android emulator and real-PBX l
   `AuthentikTest` (fake proxy/outpost/authentik) and on the emulator against a real authentik 2026.8 + NPM 2.16
   (detection, Custom Tab login, redirect back, request reaching the server through authentik).
 
+- **Server 1.2.0 (2026-10-20)**: Go 1.27.2 (go.mod + build image): govulncheck flagged GO-2026-6610..6617 (net/http,
+  http2) in 1.27.1 and CI's `go` job had failed on every commit since.
+
 ## 13. Design decisions (and why)
 
 - **Server-side SIP, clients on WebSocket**: one HTTPS port through any reverse proxy, no SIP/RTP/TURN
