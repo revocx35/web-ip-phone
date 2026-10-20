@@ -176,6 +176,17 @@ client). `PhoneService` is a foreground service: type `phoneCall|microphone` dur
 connection itself delivers incoming calls). Incoming calls ring with a CallStyle notification and a
 full-screen `IncomingCallActivity` over the lock screen.
 
+### 9.0 Servers behind authentik (since 1.2.0)
+
+`net/Authentik.kt` (same file as in wa_logger's and insta_logger's clients and RWR) is added to `Api`'s OkHttp client
+when a server sits behind authentik forward auth (e.g. Nginx Proxy Manager + authentik's embedded outpost): authentik's
+sign-in redirect becomes `AuthentikRequiredException`; the sign-in screen (`ui/AuthentikUi.kt`, also shown over a
+signed-in session when authentik wants a new login: `WebPhoneApp.authentikNeeded`) runs OAuth 2 + PKCE in a Custom
+Tab against the public client `webiphone-android` (`data/AuthentikSignIn.kt`, redirect `<applicationId>:/authentik`).
+Requests then carry `Authorization: Bearer <authentik access token>` and the app's own bearer token in
+`X-App-Authorization`; the proxy puts the app token back into `Authorization` (docs/authentik.md), so the server is
+unchanged. Tokens are Keystore-encrypted; signing out revokes the refresh token.
+
 ### 9.1 Incoming calls on the lock screen (since 1.0.1)
 
 `phone/CallScreenAccess.kt` decides how a ringing call reaches the screen while the app is in the
@@ -240,6 +251,11 @@ CI (`.github/workflows/ci.yml`) runs all but the Android emulator and real-PBX l
   the Firefox browser test, the Android emulator e2e (incl. a background notification named by contact)
   and an upgrade of a 1.0.1 database.
 
+- **Android 1.2.0 (2026-10-20): servers behind authentik** (9.0), requested by the user ("android clients of
+  most of these apps will probably break when authentik is used, make them compatible"). Verified with
+  `AuthentikTest` (fake proxy/outpost/authentik) and on the emulator against a real authentik 2026.8 + NPM 2.16
+  (detection, Custom Tab login, redirect back, request reaching the server through authentik).
+
 ## 13. Design decisions (and why)
 
 - **Server-side SIP, clients on WebSocket**: one HTTPS port through any reverse proxy, no SIP/RTP/TURN
@@ -272,6 +288,10 @@ CI (`.github/workflows/ci.yml`) runs all but the Android emulator and real-PBX l
   serialization of contacts, and `hello` refetches anyway after reconnects.
 - **Numbers stored dialable** (separators stripped on the server): every client can dial them as is, and
   matching/dial rules see the same string the PBX gets.
+
+- **authentik: bearer token + `X-App-Authorization` swap at the proxy** instead of an outpost bypass for
+  `/api/v1/` or a cookie captured from a WebView: authentik stays in front of every request, the refresh token keeps
+  background calls working without new logins, revocation in authentik works, and the server needs no change.
 
 ## 14. Notes for future sessions
 
@@ -328,3 +348,10 @@ phone books per PBX or group; optional WebRTC
 media for lossy mobile links; Android Telecom `ConnectionService` integration (Bluetooth/car UI);
 UnifiedPush or FCM for battery-friendlier background calls; F-Droid listing (reproducible build like
 the user's NPM Mobile app); per-PBX outbound caller ID rules; admin UI for live registrations per contact.
+
+**authentik (2026-10-20)**:
+- authentik 2026.8's outpost validates `Authorization: Bearer` by token introspection, which accepts a token of
+  OAuth2 provider A for proxy provider B only if **A lists B** in `jwt_federation_providers`.
+- NPM drops its own `location /` when the advanced config defines one: the authentik snippet must repeat
+  `include conf.d/include/proxy.conf;` and the websocket headers (docs/authentik.md).
+- `Api` follows redirects; the authentik network interceptor throws before OkHttp would follow the sign-in redirect.

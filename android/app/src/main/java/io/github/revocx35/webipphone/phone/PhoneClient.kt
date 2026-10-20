@@ -5,6 +5,7 @@ import android.content.Intent
 import android.util.Log
 import io.github.revocx35.webipphone.IncomingCallActivity
 import io.github.revocx35.webipphone.WebPhoneApp
+import io.github.revocx35.webipphone.net.AuthentikRequiredException
 import io.github.revocx35.webipphone.net.CallView
 import io.github.revocx35.webipphone.net.PhoneView
 import io.github.revocx35.webipphone.net.json
@@ -129,6 +130,7 @@ class PhoneClient(private val app: WebPhoneApp) {
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                if (t is AuthentikRequiredException) app.authentikNeeded.value = true
                 val code = response?.code ?: 0
                 scope.launch { closed(webSocket, if (code == 401) 4401 else 0, t.message ?: "") }
             }

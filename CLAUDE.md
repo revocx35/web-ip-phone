@@ -87,7 +87,8 @@ Test credentials, the user's PBX details and which extension may be used live in
 - `web/`: the UI. `src/phone/client.ts` (WS + call logic), `src/phone/audio.ts` + `public/worklets/*.js`
   (capture/playback AudioWorklets), `src/views`, `src/admin`. Contacts: `src/contacts.ts` (store, reload),
   `src/contactIndex.ts` (pure matching/search, tested in `web/test/`), `src/views/Contacts.tsx`.
-- `android/`: Kotlin/Compose app. `phone/PhoneClient.kt` mirrors `web/src/phone/client.ts`;
+- `android/`: Kotlin/Compose app. `net/Authentik.kt` (authentik forward auth; same file as in wa_logger's/insta_logger's
+  clients and RWR, change them together; docs/authentik.md). `phone/PhoneClient.kt` mirrors `web/src/phone/client.ts`;
   `phone/ContactIndex.kt` mirrors `web/src/contactIndex.ts`; `ui/ContactsScreen.kt`.
 - `test/asterisk`: disposable Asterisk with extensions 2001-2004 and test numbers (600 echo, 601 tone,
   602 DTMF capture, 603 busy, 604 early media, 605 remote hangup, 606 MOH, 699 never answers); context

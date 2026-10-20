@@ -21,8 +21,8 @@ android {
         applicationId = "io.github.revocx35.webipphone"
         minSdk = 26
         targetSdk = 37
-        versionCode = 3
-        versionName = "1.1.0"
+        versionCode = 4
+        versionName = "1.2.0"
     }
 
     dependenciesInfo {
@@ -106,4 +106,5 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver)
 }

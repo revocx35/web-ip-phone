@@ -21,7 +21,7 @@ import okhttp3.WebSocketListener
 class ApiException(val status: Int, val code: String, message: String) : IOException(message)
 
 /** REST + WebSocket client for one server, authenticated with a bearer token. */
-class Api(val baseUrl: String, pin: String?, @Volatile var token: String? = null) {
+class Api(val baseUrl: String, pin: String?, @Volatile var token: String? = null, authentik: Authentik? = null) {
     val http: OkHttpClient = run {
         val tm = PinningTrustManager(pin)
         val ctx = SSLContext.getInstance("TLS").apply { init(null, arrayOf(tm), null) }
@@ -33,6 +33,13 @@ class Api(val baseUrl: String, pin: String?, @Volatile var token: String? = null
             .writeTimeout(20, TimeUnit.SECONDS)
             .pingInterval(25, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
+            .apply {
+                // Server behind authentik forward auth (net/Authentik.kt): bearer token + sign-in detection.
+                if (authentik != null) {
+                    addInterceptor(authentik.interceptor)
+                    addNetworkInterceptor(authentik.networkInterceptor)
+                }
+            }
             .build()
     }
 

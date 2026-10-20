@@ -13,7 +13,10 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import io.github.revocx35.webipphone.data.KeystoreAuthentikStore
 import io.github.revocx35.webipphone.data.Prefs
+import io.github.revocx35.webipphone.net.Authentik
+import io.github.revocx35.webipphone.net.AuthentikRequiredException
 import io.github.revocx35.webipphone.net.Api
 import io.github.revocx35.webipphone.net.ApiException
 import io.github.revocx35.webipphone.net.Me
@@ -27,6 +30,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 sealed interface Session {
     data object SignedOut : Session
@@ -51,14 +57,25 @@ class WebPhoneApp : Application() {
 
     val signedIn get() = api?.token != null
 
+    /** authentik sign-in for a server behind authentik forward auth (net/Authentik.kt). */
+    lateinit var authentik: Authentik
+        private set
+    /** The server wants an authentik sign-in (missing, expired or revoked): the UI shows the sign-in screen. */
+    val authentikNeeded = MutableStateFlow(false)
+
     override fun onCreate() {
         super.onCreate()
         prefs = Prefs(this)
         Notifications.createChannels(this)
+        authentik = Authentik(
+            KeystoreAuthentikStore(this),
+            OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).followRedirects(false).build(),
+        )
+        authentik.onSignInRequired = { authentikNeeded.value = true }
         val url = prefs.serverUrl
         val token = prefs.token
         if (url != null && token != null) {
-            api = Api(url, prefs.pinnedCert, token)
+            api = Api(url, prefs.pinnedCert, token, authentik)
             session.value = Session.Active(null)
         }
         phone = PhoneClient(this)
@@ -111,6 +128,8 @@ class WebPhoneApp : Application() {
         scope.launch {
             try {
                 session.value = Session.Active(a.me())
+            } catch (e: AuthentikRequiredException) {
+                authentikNeeded.value = true
             } catch (e: ApiException) {
                 if (e.status == 401) signOutLocal("Your session ended. Sign in again.")
             } catch (_: Exception) {
@@ -125,7 +144,7 @@ class WebPhoneApp : Application() {
         prefs.token = token
         prefs.username = me.username
         signOutReason.value = null
-        api = Api(url, pin, token)
+        api = Api(url, pin, token, authentik)
         session.value = Session.Active(me)
         phone.start()
         if (prefs.backgroundCalls) PhoneService.start(this)
@@ -136,10 +155,22 @@ class WebPhoneApp : Application() {
         if (on && signedIn) PhoneService.start(this) else if (phone.state.value.myCall == null) PhoneService.stop(this)
     }
 
-    /** Signs out on the server, then locally. */
+    /** The authentik sign-in worked again: reconnect. */
+    fun authentikSignedIn() {
+        authentikNeeded.value = false
+        if (signedIn) {
+            scope.launch { phone.onNetworkChanged() }
+            refreshMe()
+        }
+    }
+
+    /** Signs out on the server, then locally (also forgets the authentik sign-in). */
     fun signOut() {
         val a = api
-        scope.launch { a?.logout() }
+        scope.launch {
+            a?.logout()
+            withContext(Dispatchers.IO) { authentik.signOut() }
+        }
         signOutLocal(null)
     }
 

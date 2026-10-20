@@ -1,5 +1,6 @@
 package io.github.revocx35.webipphone.ui
 
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -104,19 +105,22 @@ fun SignInFlow(app: WebPhoneApp) {
     var error by remember { mutableStateOf<String?>(reason) }
     var untrusted by remember { mutableStateOf<Pair<String, UntrustedCertificateException>?>(null) }
     var needLan by remember { mutableStateOf(false) }
+    /** The server answered with authentik's sign-in redirect: (server, where it redirected to). */
+    var authentikAt by remember { mutableStateOf<Pair<String, okhttp3.HttpUrl?>?>(null) }
     val lanLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         needLan = false
         if (!ok) error = "Allow \"Local network access\" for Web IP Phone to reach a server on your network."
     }
 
     suspend fun probe(u: String, p: String?) {
-        val info = Api(u, p).info()
+        val info = Api(u, p, authentik = app.authentik).info()
         if (info.setupRequired) throw Exception("This server is not set up yet. Open it in a web browser and create the admin account first.")
         if (info.api < 1) throw Exception("This does not look like a Web IP Phone server.")
     }
 
     fun connect() {
         error = null
+        authentikAt = null
         scope.launch {
             busy = true
             try {
@@ -132,6 +136,7 @@ fun SignInFlow(app: WebPhoneApp) {
                     pin = samePin
                     normalized = u
                 } catch (e: Exception) {
+                    e.authentikRequired()?.let { authentikAt = u to it.location; return@launch }
                     val cert = e.untrustedCertificate() ?: throw e
                     untrusted = u to cert
                 }
@@ -149,7 +154,7 @@ fun SignInFlow(app: WebPhoneApp) {
         scope.launch {
             busy = true
             try {
-                val api = Api(u, pin)
+                val api = Api(u, pin, authentik = app.authentik)
                 val r = if (ticket == null) api.login(username.trim(), password, "${Build.MANUFACTURER} ${Build.MODEL}".trim())
                 else api.mfa(ticket!!, code.trim())
                 when {
@@ -176,6 +181,12 @@ fun SignInFlow(app: WebPhoneApp) {
                     placeholder = { Text("https://phone.example.com") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go))
                 ErrorText(error)
+                authentikAt?.let { (u, location) ->
+                    val site = u.toHttpUrlOrNull()
+                    if (site != null && u == runCatching { normalizeServerUrl(url) }.getOrNull()) {
+                        AuthentikSignInPanel(app, Api(u, app.prefs.pinnedCert.takeIf { u == app.prefs.serverUrl }, authentik = app.authentik).http, site, location) { connect() }
+                    }
+                }
                 Button(::connect, Modifier.fillMaxWidth().height(52.dp), enabled = !busy && url.isNotBlank()) {
                     if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp) else Text("Continue")
                 }

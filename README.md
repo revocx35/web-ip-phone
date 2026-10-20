@@ -75,6 +75,7 @@ SHA-256 fingerprint; compare it with *Admin -> Overview* before trusting it. Det
 
 - [docs/deployment.md](docs/deployment.md): configuration, reverse proxy (Nginx Proxy Manager), TLS, PBX notes, backups
 - [docs/android.md](docs/android.md): the app, background calls, battery settings
+- [docs/authentik.md](docs/authentik.md): putting the server behind authentik forward auth (the app signs in with authentik)
 - [docs/protocol.md](docs/protocol.md): REST and WebSocket API (build your own client)
 - [docs/development.md](docs/development.md): building and testing
 - [ARCHITECTURE.md](ARCHITECTURE.md): how it works; [SECURITY.md](SECURITY.md): threat model and hardening

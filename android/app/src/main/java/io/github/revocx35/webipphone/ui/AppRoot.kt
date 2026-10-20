@@ -35,8 +35,10 @@ enum class Tab(val label: String) { KEYPAD("Keypad"), RECENTS("Recents"), CONTAC
 @Composable
 fun AppRoot(app: WebPhoneApp) {
     val session by app.session.collectAsState()
+    val authentikNeeded by app.authentikNeeded.collectAsState()
     when (val s = session) {
         Session.SignedOut -> SignInFlow(app)
+        is Session.Active if authentikNeeded -> AuthentikScreen(app)
         is Session.Active -> {
             val me = s.me
             if (me != null && (me.mustChangePassword || me.mustEnroll2fa)) RestrictedFlow(app, me) else Home(app)

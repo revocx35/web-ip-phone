@@ -92,6 +92,12 @@ If your admin allows "any SIP account" on a PBX, *Settings -> My phones -> Add p
 with credentials you know. They are checked against the PBX before saving and stored encrypted on the
 server (never on the phone).
 
+## Servers behind authentik
+
+If your reverse proxy protects the server with authentik, the connect screen shows **Sign in with authentik**: log in
+once in the browser, then sign in to Web IP Phone as usual. The app renews the authentik sign-in in the background, so
+calls keep ringing; if authentik revokes it, the app asks again. Setup: [authentik.md](authentik.md).
+
 ## Privacy and security
 
 - The session token is encrypted with a key in the Android Keystore; app data is excluded from backups.
