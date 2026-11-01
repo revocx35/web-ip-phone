@@ -88,7 +88,7 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	ipKey := "setup:" + clientIP(r)
-	if wait := s.setupThrottle.Wait(ipKey); wait > 0 {
+	if wait := s.setupThrottle.Begin(ipKey); wait > 0 { // charged now, refunded once the token matched
 		return tooMany(wait)
 	}
 	s.setupMu.Lock()
@@ -99,10 +99,10 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) error {
 	}
 	a, b := sha256.Sum256([]byte(auth.NormalizeHumanCode(req.Token))), sha256.Sum256([]byte(auth.NormalizeHumanCode(expected)))
 	if subtle.ConstantTimeCompare(a[:], b[:]) != 1 {
-		s.setupThrottle.Fail(ipKey)
 		s.audit(r, "setup", req.Username, "wrong setup token", false)
 		return &apiError{status: http.StatusForbidden, code: "bad_token", msg: "wrong setup token (see the server log)"}
 	}
+	s.setupThrottle.Refund(ipKey)
 	if !usernameRe.MatchString(req.Username) {
 		return errBad("username: 3-32 letters, digits, dot, dash or underscore")
 	}
@@ -173,11 +173,11 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) error {
 		return errBad("invalid device name")
 	}
 	ipKey, userKey := "ip:"+clientIP(r), "user:"+strings.ToLower(req.Username)
-	if wait := s.loginThrottle.Wait(ipKey, userKey); wait > 0 {
+	// charged before the password is checked (parallel guesses can't race past a lock); refunded on success
+	if wait := s.loginThrottle.Begin(ipKey, userKey); wait > 0 {
 		return tooMany(wait)
 	}
 	fail := func(details string) error {
-		s.loginThrottle.Fail(ipKey, userKey)
 		s.audit(r, "login", req.Username, details, false)
 		return errBadLogin
 	}
@@ -202,6 +202,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) error {
 	if u.Disabled {
 		return fail("account disabled")
 	}
+	s.loginThrottle.Refund(ipKey)
 	s.loginThrottle.Reset(userKey)
 	if rehash {
 		if h, err := auth.HashPassword(r.Context(), req.Password, s.pwParams); err == nil {
@@ -266,7 +267,7 @@ func (s *Server) handleLoginMFA(w http.ResponseWriter, r *http.Request) error {
 		return &apiError{status: http.StatusUnauthorized, code: "mfa_expired", msg: "sign-in expired, start again"}
 	}
 	key := "mfa:" + strconv.FormatInt(t.userID, 10)
-	if wait := s.mfaThrottle.Wait(key); wait > 0 {
+	if wait := s.mfaThrottle.Begin(key); wait > 0 { // charged before the code is checked, reset on success
 		return tooMany(wait)
 	}
 	u, err := s.store.GetUser(r.Context(), t.userID)
@@ -278,7 +279,6 @@ func (s *Server) handleLoginMFA(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if !ok {
-		s.mfaThrottle.Fail(key)
 		s.mfaMu.Lock()
 		t.attempts++
 		if t.attempts >= 5 {
@@ -365,10 +365,11 @@ func (s *Server) handleUpdateMe(w http.ResponseWriter, r *http.Request) error {
 func (s *Server) verifyCurrentPassword(r *http.Request, password string) error {
 	a := authOf(r)
 	key := "reauth:" + strconv.FormatInt(a.User.ID, 10)
-	if wait := s.loginThrottle.Wait(key); wait > 0 {
+	if wait := s.loginThrottle.Begin(key); wait > 0 { // charged before the check, reset on success
 		return tooMany(wait)
 	}
 	if len(password) > auth.MaxPasswordLen {
+		s.loginThrottle.Refund(key)
 		return errBad("password too long")
 	}
 	ok, _, err := auth.VerifyPassword(r.Context(), password, a.User.PasswordHash, s.pwParams)
@@ -376,7 +377,6 @@ func (s *Server) verifyCurrentPassword(r *http.Request, password string) error {
 		return err
 	}
 	if !ok {
-		s.loginThrottle.Fail(key)
 		return &apiError{status: http.StatusForbidden, code: "bad_password", msg: "current password is wrong"}
 	}
 	s.loginThrottle.Reset(key)
@@ -467,7 +467,7 @@ func (s *Server) handleTOTPEnable(w http.ResponseWriter, r *http.Request) error 
 		return errBad("start the setup first")
 	}
 	key := "totp-enable:" + strconv.FormatInt(a.User.ID, 10)
-	if wait := s.mfaThrottle.Wait(key); wait > 0 {
+	if wait := s.mfaThrottle.Begin(key); wait > 0 { // charged before the check, reset on success
 		return tooMany(wait)
 	}
 	secret, err := s.box.Open(a.User.TOTPSecret, totpContext(a.User.ID))
@@ -476,9 +476,9 @@ func (s *Server) handleTOTPEnable(w http.ResponseWriter, r *http.Request) error 
 	}
 	step, ok := auth.CheckTOTP(secret, strings.TrimSpace(req.Code), s.now())
 	if !ok {
-		s.mfaThrottle.Fail(key)
 		return &apiError{status: http.StatusBadRequest, code: "bad_code", msg: "wrong code, check the time on your phone"}
 	}
+	s.mfaThrottle.Reset(key)
 	codes, hashes := newRecoveryCodes()
 	if err := s.store.EnableTOTP(r.Context(), a.User.ID, step, hashes); err != nil {
 		return err

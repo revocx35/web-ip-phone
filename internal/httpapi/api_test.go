@@ -6,11 +6,13 @@ import (
 	"encoding/base32"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -298,6 +300,41 @@ func TestLoginThrottleAndGenericErrors(t *testing.T) {
 	e.now = e.now.Add(20 * time.Minute)
 	if c, m := e.login("admin", "Adm1n-Secret!", false); c == "" {
 		t.Fatalf("login after the wait failed: %v", m)
+	}
+}
+
+func TestParallelLoginGuessesCannotRacePastTheThrottle(t *testing.T) {
+	e := newEnv(t, "")
+	e.setupAdmin()
+	const n = 40
+	var wg sync.WaitGroup
+	codes := make(chan any, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, m := e.login("admin", fmt.Sprintf("guess-%d", i), false)
+			codes <- m["code"]
+		}(i)
+	}
+	wg.Wait()
+	close(codes)
+	checked := 0
+	for c := range codes {
+		if c == "bad_credentials" {
+			checked++
+		}
+	}
+	// 5 free failures + the one that sets the lock; before the fix every request was checked
+	if checked > 6 {
+		t.Fatalf("%d of %d parallel guesses were checked", checked, n)
+	}
+	// successful logins from one address never add up to a lock
+	e.now = e.now.Add(2 * time.Hour)
+	for i := 0; i < 8; i++ {
+		if c, m := e.login("admin", "Adm1n-Secret!", false); c == "" {
+			t.Fatalf("login %d: %v", i, m)
+		}
 	}
 }
 

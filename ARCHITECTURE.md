@@ -259,6 +259,12 @@ CI (`.github/workflows/ci.yml`) runs all but the Android emulator and real-PBX l
 - **Server 1.2.0 (2026-10-20)**: Go 1.27.2 (go.mod + build image): govulncheck flagged GO-2026-6610..6617 (net/http,
   http2) in 1.27.1 and CI's `go` job had failed on every commit since.
 
+- **Unreleased (bug hunt 2026-11-01): throttles charge before the check.** Login, setup token, 2FA (login and
+  enable) and re-authentication used `Throttle.Wait` → check → `Fail`. Argon2 queues behind a two-slot
+  semaphore, so a burst of parallel guesses (the API rate limiter allows 120 per IP) all passed `Wait` before
+  the first `Fail` landed: ~120 guesses per lock window instead of 5. `Throttle.Begin` now checks and charges
+  in one step and `Refund`/`Reset` take the charge back on success (`TestParallelLoginGuessesCannotRacePastTheThrottle`).
+
 ## 13. Design decisions (and why)
 
 - **Server-side SIP, clients on WebSocket**: one HTTPS port through any reverse proxy, no SIP/RTP/TURN
@@ -300,6 +306,9 @@ CI (`.github/workflows/ci.yml`) runs all but the Android emulator and real-PBX l
 
 > **For every agent working on this repo:** after your change, update §12 History, §13 decisions and
 > this section the same way (see "Before you finish" in CLAUDE.md).
+
+**Throttles**: use `Begin` (check + charge atomically) before checking a secret and `Refund`/`Reset` after a
+success; never `Wait` → check → `Fail`, which parallel requests race past.
 
 **sipgo quirks (v1.6.0)** - each cost debugging time:
 - CANCEL/ACK are built from the Request-URI and ignore `SetDestination`: the PBX host:port must be in the

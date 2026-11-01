@@ -147,3 +147,33 @@ func TestTokens(t *testing.T) {
 		t.Fatalf("human code %q", c)
 	}
 }
+
+func TestThrottleBeginChargesBeforeTheCheck(t *testing.T) {
+	now := time.Unix(1000, 0)
+	th := NewThrottle(3, 2*time.Second, time.Minute, time.Hour)
+	th.SetClock(func() time.Time { return now })
+	// four attempts in flight at once (none has finished yet): the fourth is already over the free budget
+	for i := 0; i < 4; i++ {
+		if w := th.Begin("ip:a"); w != 0 {
+			t.Fatalf("attempt %d refused: %v", i, w)
+		}
+	}
+	if w := th.Begin("ip:a"); w != 2*time.Second {
+		t.Fatalf("fifth parallel attempt not throttled: %v", w)
+	}
+	// a success refunds its own charge only
+	th.Refund("ip:a")
+	if w := th.Wait("ip:a"); w != 0 {
+		t.Fatalf("still locked after the refund (3 failures = free): %v", w)
+	}
+	th.Refund("ip:a")
+	th.Refund("ip:a")
+	th.Refund("ip:a")
+	th.Refund("ip:a")         // more refunds than charges: harmless
+	for i := 0; i < 10; i++ { // successful attempts never add up
+		if th.Begin("ip:a") != 0 {
+			t.Fatalf("successful attempt %d throttled", i)
+		}
+		th.Refund("ip:a")
+	}
+}

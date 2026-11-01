@@ -40,7 +40,54 @@ func (t *Throttle) SetClock(now func() time.Time) { t.now = now }
 func (t *Throttle) Wait(keys ...string) time.Duration {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	return t.waitLocked(t.now(), keys...)
+}
+
+// Begin checks the keys and, when the attempt is allowed, charges it as a failure in the same
+// step: the secret is checked afterwards, so parallel requests can't all pass a Wait before the
+// first Fail lands (argon2 queues behind a two-slot semaphore, which made that window wide).
+// Call Refund (or Reset) when the attempt succeeded; on failure nothing more is needed.
+func (t *Throttle) Begin(keys ...string) time.Duration {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	now := t.now()
+	if wait := t.waitLocked(now, keys...); wait > 0 {
+		return wait
+	}
+	t.failLocked(now, keys...)
+	return 0
+}
+
+// Refund takes back the failure Begin charged for the keys (the attempt succeeded).
+func (t *Throttle) Refund(keys ...string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for _, k := range keys {
+		e := t.m[k]
+		if e == nil {
+			continue
+		}
+		e.failures--
+		if e.failures <= 0 {
+			delete(t.m, k)
+			continue
+		}
+		e.until = time.Time{}
+		if over := e.failures - t.Free; over > 0 {
+			e.until = e.last.Add(t.delay(over))
+		}
+	}
+}
+
+func (t *Throttle) delay(over int) time.Duration {
+	d := t.Base << min(over-1, 20)
+	if d > t.Max || d <= 0 {
+		d = t.Max
+	}
+	return d
+}
+
+func (t *Throttle) waitLocked(now time.Time, keys ...string) time.Duration {
 	var wait time.Duration
 	for _, k := range keys {
 		e := t.m[k]
@@ -62,7 +109,10 @@ func (t *Throttle) Wait(keys ...string) time.Duration {
 func (t *Throttle) Fail(keys ...string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	now := t.now()
+	t.failLocked(t.now(), keys...)
+}
+
+func (t *Throttle) failLocked(now time.Time, keys ...string) {
 	t.gc(now)
 	for _, k := range keys {
 		e := t.m[k]
@@ -76,11 +126,7 @@ func (t *Throttle) Fail(keys ...string) {
 		e.failures++
 		e.last = now
 		if over := e.failures - t.Free; over > 0 {
-			d := t.Base << min(over-1, 20)
-			if d > t.Max || d <= 0 {
-				d = t.Max
-			}
-			e.until = now.Add(d)
+			e.until = now.Add(t.delay(over))
 		}
 	}
 }
